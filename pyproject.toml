@@ -1,0 +1,36 @@
+[project]
+name = "ungrasp"
+version = "0.1.0"
+description = "Convert TICRA GRASP .sph coefficients to spin-weighted spherical harmonics for CMB analysis."
+readme = "README.md"
+authors = [
+    { name = "Maurizio Tomasi", email = "ziotom78@gmail.com" }
+]
+requires-python = ">=3.11"
+dependencies = [
+    "astropy>=7.2.0",
+    "ducc0>=0.40.0",
+    "numpy>=2.4.1",
+    "typer>=0.21.1",
+]
+
+[project.scripts]
+ungrasp = "ungrasp.cli:app"
+
+[build-system]
+requires = ["uv_build>=0.9.26,<0.10.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "hypothesis>=6.151.2",
+    "mkdocs-material>=9.7.1",
+    "mkdocstrings-python>=2.0.1",
+    "pytest>=9.0.2",
+    "pytest-cov>=7.0.0",
+    "ty>=0.0.14",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=src/ungrasp"
