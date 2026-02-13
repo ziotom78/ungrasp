@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 import numpy as np
-from pathlib import Path
 from enum import Enum
 import ducc0
 
@@ -349,12 +348,3 @@ class Beam:
         assert m >= 0
         assert m <= ell
         return m * (2 * self.lmax + 1 - m) // 2 + ell
-
-    def rotate(self, theta: float, phi: float, psi: float) -> "Beam":
-        raise NotImplementedError
-
-    def cut(self, phi: float, theta_values: np.ndarray) -> np.ndarray:
-        raise NotImplementedError
-
-    def to_fits(self, file_name: str | Path, convention: str = "COSMO") -> None:
-        raise NotImplementedError
