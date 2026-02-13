@@ -75,7 +75,7 @@ class FrequencyBlock:
 
     @staticmethod
     def _q_array_shape(mmax: int, nmax: int) -> tuple[int, int, int]:
-        return (2, 2 * mmax + 1, nmax)
+        return (2, nmax, 2 * mmax + 1)
 
     def __init__(
         self,
