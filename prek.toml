@@ -1,0 +1,28 @@
+[[repos]]
+repo = "https://github.com/astral-sh/ruff-pre-commit"
+rev = "v0.15.1"
+
+[[repos.hooks]]
+id = "ruff"
+
+[[repos.hooks]]
+id = "ruff-format"
+
+[[repos]]
+repo = "local"
+
+[[repos.hooks]]
+id = "ty-check"
+name = "Type checking (ty)"
+entry = "uv run ty check ."
+language = "system"
+types = [ "python" ]
+pass_filenames = false
+
+[[repos.hooks]]
+id = "pytest"
+name = "PyTest"
+entry = "uv run pytest"
+language = "system"
+types = [ "python" ]
+pass_filenames = false
