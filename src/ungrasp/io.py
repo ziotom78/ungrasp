@@ -69,6 +69,14 @@ class SphFileHeader:
             mmax=mmax,
         )
 
+    @property
+    def lmax(self) -> int:
+        """Return the value of nmax
+
+        This is a handy shorthand, because ℓ is the common symbol used in the
+        CMB community in place of ``n``."""
+        return self.nmax
+
 
 class FrequencyBlock:
     """Store the values of Q_smn for one frequency in a GRASP .sph file"""
@@ -96,6 +104,11 @@ class FrequencyBlock:
                 mmax=header.mmax, nmax=header.nmax
             )
             self.q_array = np.array(q_array, dtype=np.complex128)
+
+    @property
+    def frequency_ghz(self) -> float:
+        """Return the frequency (in GHz) of the EM radiation associated with this expansion"""
+        return self.header.frequency_ghz
 
     def _index(self, s: int, m: int, n: int) -> tuple[int, int, int] | None:
         """Return the position of the Q value corresponding to the indexes smn.
@@ -177,16 +190,37 @@ class FrequencyBlock:
         return result
 
 
-def _read_q_coefficients(f: TextIO, nmax: int, mmax: int) -> FrequencyBlock:
-    raise NotImplementedError
+class SphFile:
+    """Contents of a TICRA GRASP spherical wave expansion file
+
+    A SWE file contains one or more harmonic expansions of an electric field,
+    each associated to a monochromatic frequency.
+    """
+
+    def __init__(self, frequency_blocks: list[FrequencyBlock]) -> None:
+        self.frequency_blocks = frequency_blocks
+
+    def get(self, index: int) -> FrequencyBlock:
+        """Return the i-th frequency block in the file
+
+        The first block has index 0.
+
+        See also :class:`FrequencyBlock`.
+        """
+        return self.frequency_blocks[index]
+
+    @property
+    def num_of_blocks(self) -> int:
+        """Return the number of blocks loaded from the file."""
+        return len(self.frequency_blocks)
 
 
-def read_sph_file(f: TextIO) -> list[FrequencyBlock]:
+def read_sph_file(f: TextIO) -> SphFile:
     """
     Parse a GRASP `.sph` file
 
     Parse a `.sph` file created by GRASP. The file can contain multiple
-    frequencies. Return a list of `Beam` objects.
+    frequencies. Return a list of :class:`FrequencyBlock` objects.
     """
 
     blocks = []
@@ -199,4 +233,4 @@ def read_sph_file(f: TextIO) -> list[FrequencyBlock]:
         except EOFError:
             break
 
-    return blocks
+    return SphFile(frequency_blocks=blocks)

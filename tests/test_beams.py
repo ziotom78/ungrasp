@@ -10,7 +10,7 @@ def get_beam_alm(file_name: str) -> ungrasp.Beam:
     with (get_reference_file_path(file_name)).open("rt") as f:
         grasp_file = ungrasp.read_sph_file(f)
 
-    electric_field = ungrasp.ElectricField(grasp_file[0])
+    electric_field = ungrasp.ElectricField.from_frequency_block(grasp_file.get(index=0))
     return ungrasp.Beam.from_electric_field(electric_field, lmax=2)
 
 

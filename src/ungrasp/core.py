@@ -13,31 +13,70 @@ class Polarization(Enum):
 
 
 class ElectricField:
-    def __init__(self, freq_block: FrequencyBlock):
-        self.frequency_ghz = freq_block.header.frequency_ghz
+    def __init__(
+        self,
+        frequency_ghz: float,
+        lmax: int,
+        mmax: int,
+        alm_E_re,
+        alm_E_im,
+        alm_B_re,
+        alm_B_im,
+    ) -> None:
+        self.frequency_ghz = frequency_ghz
+        self.lmax = lmax
+        self.mmax = mmax
+        self.alm_E_re = alm_E_re
+        self.alm_E_im = alm_E_im
+        self.alm_B_re = alm_B_re
+        self.alm_B_im = alm_B_im
 
-        self.lmax = freq_block.header.nmax
-        self.mmax = freq_block.header.mmax
+        assert self.lmax >= self.mmax
+        assert self.alm_E_re.shape == self.alm_E_im.shape
+        assert self.alm_B_re.shape == self.alm_B_im.shape
+        assert self.alm_E_re.shape == self.alm_B_re.shape
 
-        nalm = self._num_of_alms(self.lmax, self.mmax)
-        self.alm_E_re = np.zeros(nalm, dtype=np.complex128)
-        self.alm_E_im = np.zeros(nalm, dtype=np.complex128)
-        self.alm_B_re = np.zeros(nalm, dtype=np.complex128)
-        self.alm_B_im = np.zeros(nalm, dtype=np.complex128)
-        self._build_alms_from_q(freq_block)
+    @classmethod
+    def from_frequency_block(cls, freq_block: FrequencyBlock):
+        nalm = ElectricField._num_of_alms(
+            freq_block.header.lmax, freq_block.header.mmax
+        )
+        alm_E_re = np.zeros(nalm, dtype=np.complex128)
+        alm_E_im = np.zeros(nalm, dtype=np.complex128)
+        alm_B_re = np.zeros(nalm, dtype=np.complex128)
+        alm_B_im = np.zeros(nalm, dtype=np.complex128)
+
+        ElectricField._build_alms_from_q(
+            freq_block=freq_block,
+            alm_E_re=alm_E_re,
+            alm_E_im=alm_E_im,
+            alm_B_re=alm_B_re,
+            alm_B_im=alm_B_im,
+        )
+
+        return cls(
+            frequency_ghz=freq_block.header.frequency_ghz,
+            lmax=freq_block.header.lmax,
+            mmax=freq_block.header.mmax,
+            alm_E_re=alm_E_re,
+            alm_E_im=alm_E_im,
+            alm_B_re=alm_B_re,
+            alm_B_im=alm_B_im,
+        )
 
     @staticmethod
     def _num_of_alms(lmax: int, mmax: int) -> int:
         return ((mmax + 1) * (mmax + 2)) // 2 + (mmax + 1) * (lmax - mmax)
 
-    def _get_idx(self, ell: int, m: int) -> int:
+    @staticmethod
+    def _get_idx(ell: int, m: int, lmax: int) -> int:
         "Return the index of an a_ℓm coefficient in a Healpix/ducc0 array"
-        return m * (2 * self.lmax + 1 - m) // 2 + ell
+        return m * (2 * lmax + 1 - m) // 2 + ell
 
     def get_alms(
         self, ell: int, m: int
     ) -> tuple[np.complex128, np.complex128, np.complex128, np.complex128]:
-        idx = self._get_idx(ell, m)
+        idx = ElectricField._get_idx(ell, m, lmax=self.lmax)
         return (
             self.alm_E_re[idx],
             self.alm_B_re[idx],
@@ -45,14 +84,24 @@ class ElectricField:
             self.alm_B_im[idx],
         )
 
-    def _build_alms_from_q(self, freq_block: FrequencyBlock) -> None:
+    @staticmethod
+    def _build_alms_from_q(
+        freq_block: FrequencyBlock,
+        alm_E_re: np.ndarray,
+        alm_E_im: np.ndarray,
+        alm_B_re: np.ndarray,
+        alm_B_im: np.ndarray,
+    ) -> None:
         # This normalizes the beam to 4π
         scale_factor = np.sqrt(4 * np.pi)
 
+        lmax = freq_block.header.lmax
+        mmax = freq_block.header.mmax
+
         # As the Electric field is a spin-1 field, we skip ℓ=0 (the monopole)
-        for ell in range(1, self.lmax + 1):
-            for m in range(self.mmax + 1):
-                idx = self._get_idx(ell, m)
+        for ell in range(1, lmax + 1):
+            for m in range(mmax + 1):
+                idx = ElectricField._get_idx(ell, m, lmax=lmax)
 
                 q1_mpos = scale_factor * freq_block.get_q(s=1, m=m, n=ell)
                 q2_mpos = scale_factor * freq_block.get_q(s=2, m=m, n=ell)
@@ -64,17 +113,13 @@ class ElectricField:
 
                 phase_sym = (-1) ** (ell + m)
 
-                self.alm_E_re[idx] = (
-                    0.5 * j_ell * (q2_mpos + phase_sym * np.conj(q2_mneg))
-                )
-                self.alm_B_re[idx] = (
+                alm_E_re[idx] = 0.5 * j_ell * (q2_mpos + phase_sym * np.conj(q2_mneg))
+                alm_B_re[idx] = (
                     -0.5 * j_ell_1 * (q1_mpos + (-1) * phase_sym * np.conj(q1_mneg))
                 )
 
-                self.alm_E_im[idx] = (
-                    0.5 * j_ell_1 * (q2_mpos - phase_sym * np.conj(q2_mneg))
-                )
-                self.alm_B_im[idx] = (
+                alm_E_im[idx] = 0.5 * j_ell_1 * (q2_mpos - phase_sym * np.conj(q2_mneg))
+                alm_B_im[idx] = (
                     0.5 * j_ell * (q1_mpos - (-1) * phase_sym * np.conj(q1_mneg))
                 )
 

@@ -33,8 +33,8 @@ def test_hertzian_dipoles(data_file, reference):
     with (get_reference_file_path(data_file)).open("rt") as f:
         grasp_file = ungrasp.read_sph_file(f)
 
-    assert len(grasp_file) == 1
-    freq_block = grasp_file[0]
+    assert grasp_file.num_of_blocks == 1
+    freq_block = grasp_file.get(index=0)
 
     npt.assert_allclose(freq_block.cum_power, 0.5)
 
@@ -60,9 +60,9 @@ def test_read_multi_frequency(data_dir):
     with (get_reference_file_path("multi_frequency.sph")).open("rt") as f:
         grasp_file = ungrasp.read_sph_file(f)
 
-    assert len(grasp_file) == 2
-    assert grasp_file[0].header.frequency_ghz == 15.0
-    assert grasp_file[1].header.frequency_ghz == 17.0
+    assert grasp_file.num_of_blocks == 2
+    assert grasp_file.get(index=0).frequency_ghz == 15.0
+    assert grasp_file.get(index=1).frequency_ghz == 17.0
 
 
 def test_convert_to_electric_field(data_dir):
@@ -71,8 +71,10 @@ def test_convert_to_electric_field(data_dir):
         with (get_reference_file_path(file_name)).open("rt") as f:
             grasp_file = ungrasp.read_sph_file(f)
 
-        assert len(grasp_file) == 1
-        electric_field = ungrasp.ElectricField(grasp_file[0])
+        assert grasp_file.num_of_blocks == 1
+        electric_field = ungrasp.ElectricField.from_frequency_block(
+            grasp_file.get(index=0)
+        )
 
         e_re, b_re, e_im, b_im = electric_field.get_alms(ell=ell, m=m)
         scale = np.sqrt(4 * np.pi)

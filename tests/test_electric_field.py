@@ -43,9 +43,9 @@ def load_grd_file(
 def test_asymmetric_field() -> None:
     with gzip.open(get_reference_file_path("asymmetric_swe.sph.gz"), "rt") as f:
         grasp_file = ungrasp.read_sph_file(f)
-    assert len(grasp_file) == 1
+    assert grasp_file.num_of_blocks == 1
 
-    electric_field = ungrasp.ElectricField(grasp_file[0])
+    electric_field = ungrasp.ElectricField.from_frequency_block(grasp_file.get(index=0))
 
     with gzip.open(get_reference_file_path("asymmetric_grid.grd.gz"), "rt") as f:
         ntheta, nphi, grid = load_grd_file(f, expected_header=(1, 1, 2, 7))
