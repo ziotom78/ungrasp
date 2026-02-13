@@ -1,9 +1,15 @@
 from dataclasses import dataclass
 import numpy as np
 from pathlib import Path
+from enum import Enum
 import ducc0
 
 from ungrasp import FrequencyBlock
+
+
+class Polarization(Enum):
+    THETA_PHI = 0
+    LUDWIG = 1
 
 
 class ElectricField:
@@ -111,6 +117,86 @@ class ElectricField:
         efield_phi = map_vec_re[1] + 1j * map_vec_im[1]
 
         return (efield_theta, efield_phi)
+
+    def evaluate_grid(
+        self,
+        theta_start: float,
+        theta_end: float,
+        ntheta: int,
+        phi_start: float,
+        phi_end: float,
+        nphi: int,
+        polarization: Polarization,
+        epsilon: float = 1e-8,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Evaluate the field on an arbitrary grid.
+
+        Args:
+            polarization: the polarization to use (see :class:`Polarization`).
+
+        Returns:
+            (Comp1, Comp2): Complex field components.
+        """
+        theta = np.linspace(theta_start, theta_end, num=ntheta)
+        phi = np.linspace(phi_start, phi_end, num=nphi)
+
+        theta_grid, phi_grid = np.meshgrid(theta, phi, indexing="ij")
+
+        # In this linearized representation of the directions, the φ angle varies faster than ϑ
+        loc = np.stack((theta_grid.ravel(), phi_grid.ravel()), axis=-1)
+
+        # Real part of the phasor
+        map_vec_re = ducc0.sht.synthesis_general(
+            alm=np.ascontiguousarray([self.alm_E_re, self.alm_B_re]),
+            spin=1,
+            lmax=self.lmax,
+            mmax=self.mmax,
+            loc=loc,
+            epsilon=epsilon,
+        )
+
+        # Imaginary part of the phasor
+        map_vec_im = ducc0.sht.synthesis_general(
+            alm=np.ascontiguousarray([self.alm_E_im, self.alm_B_im]),
+            spin=1,
+            lmax=self.lmax,
+            mmax=self.mmax,
+            loc=loc,
+            epsilon=epsilon,
+        )
+
+        e_theta = (map_vec_re[0] + 1j * map_vec_im[0]).reshape((ntheta, nphi))
+        e_phi = (map_vec_re[1] + 1j * map_vec_im[1]).reshape((ntheta, nphi))
+
+        if polarization == Polarization.THETA_PHI:
+            return e_theta, e_phi
+        else:
+            raise NotImplementedError()
+
+    def evaluate_cut(
+        self,
+        phi_angle: float,
+        theta_start: float,
+        theta_end: float,
+        ntheta: int,
+        polarization: Polarization,
+        epsilon=1e-8,
+    ):
+        """Extract a 1D cut at a constant phi."""
+
+        e1, e2 = self.evaluate_grid(
+            theta_start=theta_start,
+            theta_end=theta_end,
+            ntheta=ntheta,
+            phi_start=phi_angle,
+            phi_end=phi_angle,
+            nphi=1,
+            polarization=polarization,
+            epsilon=epsilon,
+        )
+
+        return e1.flatten(), e2.flatten()
 
 
 @dataclass
