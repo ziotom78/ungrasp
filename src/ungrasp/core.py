@@ -8,8 +8,50 @@ from ungrasp import FrequencyBlock
 
 
 class Polarization(Enum):
-    THETA_PHI = 0
-    LUDWIG = 1
+    THETA_PHI = "theta_phi"
+    LUDWIG3_X = "ludwig3_x"
+    LUDWIG3_Y = "ludwig3_y"
+
+
+def _apply_polarization(
+    e_theta: np.ndarray,
+    e_phi: np.ndarray,
+    phi_grid: np.ndarray,
+    polarization: Polarization,
+):
+    """
+    Applies the polarization projection matrix.
+
+    Args:
+        e_theta, e_phi (complex array): Field components.
+        phi_grid (array): Azimuthal angles in radians (must match shape of e_theta).
+        polarization (Polarization): The target polarization definition.
+
+    Returns:
+        (comp1, comp2): Transformed components.
+    """
+    if polarization == Polarization.THETA_PHI:
+        return e_theta, e_phi
+
+    sin_phi = np.sin(phi_grid)
+    cos_phi = np.cos(phi_grid)
+
+    if polarization == Polarization.LUDWIG3_X:
+        # Source aligned with X-axis (Horizontal)
+        # E_co = E_ϑ * cos(φ) - E_φ * sin(φ)
+        # E_cx = E_ϑ * sin(φ) + E_φ * cos(φ)
+        e_co = e_theta * cos_phi - e_phi * sin_phi
+        e_cx = e_theta * sin_phi + e_phi * cos_phi
+        return e_co, e_cx
+    elif polarization == Polarization.LUDWIG3_Y:
+        # Source aligned with Y-axis (Vertical)
+        # E_co = E_ϑ * sin(φ) + E_φ * cos(φ)
+        # E_cx = E_ϑ * cos(φ) - E_φ * sin(φ)
+        e_co = e_theta * sin_phi + e_phi * cos_phi
+        e_cx = e_theta * cos_phi - e_phi * sin_phi
+        return e_co, e_cx
+    else:
+        raise NotImplementedError(f"Polarization {polarization} not supported")
 
 
 class ElectricField:
@@ -165,11 +207,11 @@ class ElectricField:
 
     def evaluate_grid(
         self,
-        theta_start: float,
-        theta_end: float,
+        theta_start_rad: float,
+        theta_end_rad: float,
         ntheta: int,
-        phi_start: float,
-        phi_end: float,
+        phi_start_rad: float,
+        phi_end_rad: float,
         nphi: int,
         polarization: Polarization,
         epsilon: float = 1e-8,
@@ -183,8 +225,8 @@ class ElectricField:
         Returns:
             (Comp1, Comp2): Complex field components.
         """
-        theta = np.linspace(theta_start, theta_end, num=ntheta)
-        phi = np.linspace(phi_start, phi_end, num=nphi)
+        theta = np.linspace(theta_start_rad, theta_end_rad, num=ntheta)
+        phi = np.linspace(phi_start_rad, phi_end_rad, num=nphi)
 
         theta_grid, phi_grid = np.meshgrid(theta, phi, indexing="ij")
 
@@ -214,16 +256,21 @@ class ElectricField:
         e_theta = (map_vec_re[0] + 1j * map_vec_im[0]).reshape((ntheta, nphi))
         e_phi = (map_vec_re[1] + 1j * map_vec_im[1]).reshape((ntheta, nphi))
 
+        return _apply_polarization(
+            e_theta=e_theta, e_phi=e_phi, phi_grid=phi_grid, polarization=polarization
+        )
         if polarization == Polarization.THETA_PHI:
             return e_theta, e_phi
+        elif polarization == Polarization.LUDWIG:
+            raise NotImplementedError()
         else:
             raise NotImplementedError()
 
     def evaluate_cut(
         self,
-        phi_angle: float,
-        theta_start: float,
-        theta_end: float,
+        phi_angle_rad: float,
+        theta_start_rad: float,
+        theta_end_rad: float,
         ntheta: int,
         polarization: Polarization,
         epsilon=1e-8,
@@ -231,11 +278,11 @@ class ElectricField:
         """Extract a 1D cut at a constant phi."""
 
         e1, e2 = self.evaluate_grid(
-            theta_start=theta_start,
-            theta_end=theta_end,
+            theta_start_rad=theta_start_rad,
+            theta_end_rad=theta_end_rad,
             ntheta=ntheta,
-            phi_start=phi_angle,
-            phi_end=phi_angle,
+            phi_start_rad=phi_angle_rad,
+            phi_end_rad=phi_angle_rad,
             nphi=1,
             polarization=polarization,
             epsilon=epsilon,
