@@ -343,7 +343,7 @@ class Beam:
             mmax=mmax,
         )
 
-    def get_idx(self, ell: int, m: int):
+    def get_idx(self, ell: int, m: int) -> int:
         assert ell >= 0
         assert m >= 0
         assert m <= ell
