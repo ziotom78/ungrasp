@@ -59,50 +59,32 @@ class ElectricField:
         frequency_ghz: float,
         lmax: int,
         mmax: int,
-        alm_E_re,
-        alm_E_im,
-        alm_B_re,
-        alm_B_im,
+        alm_stack: np.ndarray,
     ) -> None:
         self.frequency_ghz = frequency_ghz
         self.lmax = lmax
         self.mmax = mmax
-        self.alm_E_re = alm_E_re
-        self.alm_E_im = alm_E_im
-        self.alm_B_re = alm_B_re
-        self.alm_B_im = alm_B_im
+        self.alm_stack = alm_stack
 
         assert self.lmax >= self.mmax
-        assert self.alm_E_re.shape == self.alm_E_im.shape
-        assert self.alm_B_re.shape == self.alm_B_im.shape
-        assert self.alm_E_re.shape == self.alm_B_re.shape
 
     @classmethod
     def from_frequency_block(cls, freq_block: FrequencyBlock):
         nalm = ElectricField._num_of_alms(
             freq_block.header.lmax, freq_block.header.mmax
         )
-        alm_E_re = np.zeros(nalm, dtype=np.complex128)
-        alm_E_im = np.zeros(nalm, dtype=np.complex128)
-        alm_B_re = np.zeros(nalm, dtype=np.complex128)
-        alm_B_im = np.zeros(nalm, dtype=np.complex128)
+        alm_stack = np.zeros((4, nalm), dtype=np.complex128)
 
         ElectricField._build_alms_from_q(
             freq_block=freq_block,
-            alm_E_re=alm_E_re,
-            alm_E_im=alm_E_im,
-            alm_B_re=alm_B_re,
-            alm_B_im=alm_B_im,
+            alm_stack=alm_stack,
         )
 
         return cls(
             frequency_ghz=freq_block.header.frequency_ghz,
             lmax=freq_block.header.lmax,
             mmax=freq_block.header.mmax,
-            alm_E_re=alm_E_re,
-            alm_E_im=alm_E_im,
-            alm_B_re=alm_B_re,
-            alm_B_im=alm_B_im,
+            alm_stack=alm_stack,
         )
 
     @staticmethod
@@ -118,20 +100,14 @@ class ElectricField:
         self, ell: int, m: int
     ) -> tuple[np.complex128, np.complex128, np.complex128, np.complex128]:
         idx = ElectricField._get_idx(ell, m, lmax=self.lmax)
-        return (
-            self.alm_E_re[idx],
-            self.alm_B_re[idx],
-            self.alm_E_im[idx],
-            self.alm_B_im[idx],
+        return tuple(
+            self.alm_stack[:, idx],
         )
 
     @staticmethod
     def _build_alms_from_q(
         freq_block: FrequencyBlock,
-        alm_E_re: np.ndarray,
-        alm_E_im: np.ndarray,
-        alm_B_re: np.ndarray,
-        alm_B_im: np.ndarray,
+        alm_stack: np.ndarray,
     ) -> None:
         # This normalizes the beam to 4π
         scale_factor = np.sqrt(4 * np.pi)
@@ -154,13 +130,17 @@ class ElectricField:
 
                 phase_sym = (-1) ** (ell + m)
 
-                alm_E_re[idx] = 0.5 * j_ell * (q2_mpos + phase_sym * np.conj(q2_mneg))
-                alm_B_re[idx] = (
+                alm_stack[0, idx] = (
+                    0.5 * j_ell * (q2_mpos + phase_sym * np.conj(q2_mneg))
+                )
+                alm_stack[1, idx] = (
                     -0.5 * j_ell_1 * (q1_mpos + (-1) * phase_sym * np.conj(q1_mneg))
                 )
 
-                alm_E_im[idx] = 0.5 * j_ell_1 * (q2_mpos - phase_sym * np.conj(q2_mneg))
-                alm_B_im[idx] = (
+                alm_stack[2, idx] = (
+                    0.5 * j_ell_1 * (q2_mpos - phase_sym * np.conj(q2_mneg))
+                )
+                alm_stack[3, idx] = (
                     0.5 * j_ell * (q1_mpos - (-1) * phase_sym * np.conj(q1_mneg))
                 )
 
@@ -179,7 +159,7 @@ class ElectricField:
 
         # Real part of the phasor
         map_vec_re = ducc0.sht.synthesis_2d(
-            alm=np.ascontiguousarray([self.alm_E_re, self.alm_B_re]),
+            alm=self.alm_stack[0:2],
             spin=1,
             ntheta=n_theta,
             nphi=n_phi,
@@ -190,7 +170,7 @@ class ElectricField:
 
         # Imaginary part of the phasor
         map_vec_im = ducc0.sht.synthesis_2d(
-            alm=np.ascontiguousarray([self.alm_E_im, self.alm_B_im]),
+            alm=self.alm_stack[2:4],
             spin=1,
             ntheta=n_theta,
             nphi=n_phi,
@@ -234,7 +214,7 @@ class ElectricField:
 
         # Real part of the phasor
         map_vec_re = ducc0.sht.synthesis_general(
-            alm=np.ascontiguousarray([self.alm_E_re, self.alm_B_re]),
+            alm=self.alm_stack[0:2],
             spin=1,
             lmax=self.lmax,
             mmax=self.mmax,
@@ -244,7 +224,7 @@ class ElectricField:
 
         # Imaginary part of the phasor
         map_vec_im = ducc0.sht.synthesis_general(
-            alm=np.ascontiguousarray([self.alm_E_im, self.alm_B_im]),
+            alm=self.alm_stack[2:4],
             spin=1,
             lmax=self.lmax,
             mmax=self.mmax,
@@ -258,12 +238,6 @@ class ElectricField:
         return _apply_polarization(
             e_theta=e_theta, e_phi=e_phi, phi_grid=phi_grid, polarization=polarization
         )
-        if polarization == Polarization.THETA_PHI:
-            return e_theta, e_phi
-        elif polarization == Polarization.LUDWIG:
-            raise NotImplementedError()
-        else:
-            raise NotImplementedError()
 
     def evaluate_cut(
         self,
@@ -288,6 +262,38 @@ class ElectricField:
         )
 
         return e1.flatten(), e2.flatten()
+
+    def rotate(
+        self, psi_rad: float, theta_rad: float, phi_rad: float
+    ) -> "ElectricField":
+        """
+        Rotates the field using Euler angles (Z-Y-Z convention).
+
+        Args:
+            psi_rad (float): Rotation around Z axis (first).
+            theta_rad (float): Rotation around new Y axis.
+            phi_rad (float): Rotation around new Z axis (last).
+
+        Returns:
+            ElectricField: A new, rotated field object.
+        """
+
+        alm_rotated = ducc0.sht.rotate_alm(
+            alm=self.alm_stack,
+            lmax=self.lmax,
+            mmax_in=self.mmax,
+            mmax_out=self.mmax,
+            psi=psi_rad,
+            theta=theta_rad,
+            phi=phi_rad,
+        )
+
+        return ElectricField(
+            frequency_ghz=self.frequency_ghz,
+            lmax=self.lmax,
+            mmax=self.mmax,
+            alm_stack=alm_rotated,
+        )
 
 
 @dataclass

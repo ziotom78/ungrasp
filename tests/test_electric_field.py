@@ -63,3 +63,23 @@ def test_asymmetric_field(
 
     npt.assert_allclose(e_theta.flatten(), grid.e_field[:, 0], atol=1e-4)
     npt.assert_allclose(e_phi.flatten(), grid.e_field[:, 1], atol=1e-4)
+
+
+def load_dipole_sph(file_name: str):
+    with open(get_reference_file_path(file_name), "rt") as f:
+        grasp = ungrasp.read_sph_file(f)
+        return ungrasp.ElectricField.from_frequency_block(grasp.get(0))
+
+
+def test_rotation_consistency():
+    field_x = load_dipole_sph("hertzian_e_dipole_x.sph")
+    field_y = load_dipole_sph("hertzian_e_dipole_y.sph")
+    field_z = load_dipole_sph("hertzian_e_dipole_z.sph")
+
+    # Rotation around Z: X→Y
+    rotated_x = field_x.rotate(psi_rad=np.pi / 2, theta_rad=0.0, phi_rad=0.0)
+    assert np.allclose(rotated_x.alm_stack, field_y.alm_stack, atol=1e-12)
+
+    # Rotation around Y: Z → X
+    rotated_z = field_z.rotate(psi_rad=0, theta_rad=np.pi / 2, phi_rad=0)
+    assert np.allclose(rotated_z.alm_stack, field_x.alm_stack, atol=1e-12)
