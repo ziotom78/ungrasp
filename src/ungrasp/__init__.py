@@ -1,10 +1,11 @@
 from .io import FrequencyBlock, read_sph_file
-from .core import Polarization, ElectricField, Beam
+from .core import Polarization, MapMode, ElectricField, Beam
 
 __all__ = [
     "FrequencyBlock",
     "read_sph_file",
     "Polarization",
+    "MapMode",
     "ElectricField",
     "Beam",
 ]

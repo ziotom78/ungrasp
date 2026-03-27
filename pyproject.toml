@@ -11,6 +11,8 @@ dependencies = [
     "astropy>=7.2.0",
     "ducc0>=0.40.0",
     "numpy>=2.4.1",
+    "scipy>=1.17.0",
+    "scipy-stubs~=1.17.0",
     "typer>=0.21.1",
 ]
 
@@ -32,6 +34,12 @@ dev = [
     "pytest>=9.0.2",
     "pytest-cov>=7.0.0",
     "ty>=0.0.14",
+]
+visualization = [
+    "jupyterlab>=4.5.5",
+    "matplotlib>=3.10.8",
+    "ipywidgets>=8.1.8",
+    "plotly>=6.5.2",
 ]
 
 [tool.pytest.ini_options]
