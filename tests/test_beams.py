@@ -2,6 +2,7 @@ import ungrasp
 
 import numpy as np
 import numpy.testing as npt
+import pytest
 
 from utils import get_reference_file_path
 
@@ -54,6 +55,58 @@ def test_convert_electric_dipole_to_beam(data_dir):
 
     assert np.isclose(a_22_e.imag, 0, atol=1e-15)
     assert a_22_e.real < 0
+
+
+def test_beam_get_alms_behavior(data_dir):
+    beam = get_beam_alm("hertzian_e_dipole_x.sph")
+
+    # m = 0
+    idx_20 = beam.get_idx(2, 0)
+    i_20, e_20, b_20 = beam.get_alms(2, 0)
+    assert i_20 == beam.alm_i[idx_20]
+    assert e_20 == beam.alm_e[idx_20]
+    assert b_20 == beam.alm_b[idx_20]
+
+    # m > 0
+    idx_21 = beam.get_idx(2, 1)
+    i_21, e_21, b_21 = beam.get_alms(2, 1)
+    assert i_21 == beam.alm_i[idx_21]
+    assert e_21 == beam.alm_e[idx_21]
+
+    # m < 0 with |m| even
+    # a_{l, -2} = (-1)^(-2) * a_{l, 2}^* = + a_{l, 2}^*
+    idx_22 = beam.get_idx(2, 2)
+    i_m2, e_m2, b_m2 = beam.get_alms(2, -2)
+    assert i_m2 == pytest.approx(np.conj(beam.alm_i[idx_22]), abs=1e-15)
+    assert e_m2 == pytest.approx(np.conj(beam.alm_e[idx_22]), abs=1e-15)
+    assert b_m2 == pytest.approx(np.conj(beam.alm_b[idx_22]), abs=1e-15)
+
+    # m < 0 with |m| odd
+    # a_{l, -1} = (-1)^(-1) * a_{l, 1}^* = - a_{l, 1}^*
+    i_m1, e_m1, b_m1 = beam.get_alms(2, -1)
+    assert i_m1 == pytest.approx(-np.conj(beam.alm_i[idx_21]), abs=1e-15)
+    assert e_m1 == pytest.approx(-np.conj(beam.alm_e[idx_21]), abs=1e-15)
+    assert b_m1 == pytest.approx(-np.conj(beam.alm_b[idx_21]), abs=1e-15)
+
+    # Out-of-bounds condition
+    with pytest.raises(ValueError, match="out-of-bounds"):
+        beam.get_alms(beam.lmax + 1, 0)  # ℓ troppo grande
+
+    with pytest.raises(ValueError, match="out-of-bounds"):
+        beam.get_alms(-1, 0)  # ℓ negativo
+
+    # |m| > ℓ or |m| > mmax ---
+    # Asking m=2 for ℓ=1 should return 0
+    i_out, e_out, b_out = beam.get_alms(1, 2)
+    assert i_out == 0j
+    assert e_out == 0j
+    assert b_out == 0j
+
+    # Here we ask for a m larger than the biggest in the file
+    i_out2, e_out2, b_out2 = beam.get_alms(beam.lmax, beam.mmax + 1)
+    assert i_out2 == 0j
+    assert e_out2 == 0j
+    assert b_out2 == 0j
 
 
 def test_convert_magnetic_dipole_to_beam(data_dir):
@@ -160,3 +213,45 @@ def test_convert_magnetic_dipole_to_beam(data_dir):
     assert 0.5 < ratio < 2.0, (
         f"Geometric Distortion: Quadrupole shape ratio {ratio:.2f} is inconsistent with x-axis alignment."
     )
+
+
+def test_angular_power_spectra_math(data_dir):
+    # We load the file containing the dipole, but it’s just to have
+    # the arrays already allocated with lmax=2
+    beam = get_beam_alm("hertzian_e_dipole_x.sph")
+
+    # Clean up everything in the arrays of a_ℓm coefficients
+    beam.alm_i.fill(0j)
+    beam.alm_e.fill(0j)
+    beam.alm_b.fill(0j)
+
+    # Scegliamo di testare il multipolo ℓ = 2.
+    # La formula dello spettro per un campo reale è:
+    # C_2 = ( |a_{2,0}|^2 + 2 * |a_{2,1}|^2 + 2 * |a_{2,2}|^2 ) / (2*2 + 1)
+
+    # Simple real values for the I coefficients
+    beam.alm_i[beam.get_idx(2, 0)] = 3.0 + 0j
+    beam.alm_i[beam.get_idx(2, 1)] = 2.0 + 0j
+    beam.alm_i[beam.get_idx(2, 2)] = 1.0 + 0j
+
+    # For the E coefficients, we put the same values
+    beam.alm_e[beam.get_idx(2, 0)] = 1.0 + 0j
+    beam.alm_e[beam.get_idx(2, 1)] = 1.0 + 0j
+    beam.alm_e[beam.get_idx(2, 2)] = 1.0 + 0j
+
+    # Compute the spectra
+    ells, cl_i, cl_e, cl_b = beam.angular_power_spectra(ell_start=2)
+
+    assert len(ells) == 1
+    assert ells[0] == 2
+
+    # I: ( 3² + 2*(2²) + 2*(1²) ) / 5 = (9 + 8 + 2) / 5 = 19 / 5 = 3.8
+    expected_cl_i = 3.8
+    assert cl_i[0] == pytest.approx(expected_cl_i, abs=1e-12)
+
+    # E: ( 1² + 2*(1²) + 2*(1²) ) / 5 = (1 + 2 + 2) / 5 = 5 / 5 = 1.0
+    expected_cl_e = 1.0
+    assert cl_e[0] == pytest.approx(expected_cl_e, abs=1e-12)
+
+    # B was zero
+    assert cl_b[0] == pytest.approx(0.0, abs=1e-12)

@@ -130,7 +130,7 @@ class FrequencyBlock:
         return self.q_array[pos]
 
     def set_q(self, s: int, m: int, n: int, value: complex) -> None:
-        """Return the Q value corresponding to the indexes smn."""
+        """Set the value of the Q corresponding to the indexes smn."""
         pos = self._index(s, m, n)
         self.q_array[pos] = value
 

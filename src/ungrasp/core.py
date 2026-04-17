@@ -55,6 +55,9 @@ def _apply_polarization(
         raise NotImplementedError(f"Polarization {polarization} not supported")
 
 
+MapCallable = Callable[[np.ndarray, np.ndarray], np.ndarray]
+
+
 class MapMode:
     """
     A collection of static mapping functions to transform complex electric field
@@ -125,7 +128,7 @@ class MapMode:
         return 10 * np.log10(int_map / (np.max(int_map) + 1e-20))
 
     # Internal registry for the 'to_texture' method
-    _REGISTRY: dict[str, Callable] = {
+    _REGISTRY: dict[str, MapCallable] = {
         "intensity": intensity,
         "amplitude": amplitude,
         "phase_theta": phase_theta,
@@ -360,9 +363,9 @@ class ElectricField:
     def to_texture(
         self,
         shape: tuple[int, int] = (512, 1024),
-        mode: str | Callable = MapMode.intensity,
+        mode: str | MapCallable = MapMode.intensity,
         polarization: Polarization = Polarization.THETA_PHI,
-    ):
+    ) -> np.ndarray:
         """
         Generate an equirectangular projection of the electric field.
 
@@ -401,17 +404,19 @@ class ElectricField:
             0, np.pi, n_theta, 0, 2 * np.pi, n_phi, polarization
         )
 
-        if callable(mode):
-            map_func = mode
-        elif mode in MapMode._REGISTRY:
-            map_func = MapMode._REGISTRY[mode]
+        map_func: MapCallable
+
+        if isinstance(mode, str):
+            if mode in MapMode._REGISTRY:
+                map_func = MapMode._REGISTRY[mode]
+            else:
+                available = ", ".join(f"'{m}'" for m in MapMode.list_modes())
+                raise ValueError(
+                    f"Invalid mode '{mode}'. Available modes are: {available}. "
+                    "You can also pass a custom callable."
+                )
         else:
-            # Dynamically inject the available modes into the error message
-            available = ", ".join(f"'{m}'" for m in MapMode.list_modes())
-            raise ValueError(
-                f"Invalid mode '{mode}'. Available modes are: {available}. "
-                "You can also pass a custom callable."
-            )
+            map_func = mode
 
         return map_func(e_theta, e_phi)
 
@@ -733,7 +738,83 @@ class Beam:
         )
 
     def get_idx(self, ell: int, m: int) -> int:
+        """Return the index of the a_ℓm coefficient given (ℓ, m)
+
+        Note that only coefficients with m≥0 are stored in the object,
+        so the function will fail if m<0.
+
+        Returns:
+            The zero-based index in the a_ℓm array
+        """
         assert ell >= 0
         assert m >= 0
         assert m <= ell
         return m * (2 * self.lmax + 1 - m) // 2 + ell
+
+    def get_alms(self, ell: int, m: int) -> tuple[complex, complex, complex]:
+        """
+        Return (alm_i, alm_e, alm_b) for a given pair (ℓ, m)
+
+        This method can be used with negative and positive m.
+
+        Returns:
+            A 3-element tuple containing the harmonic coefficients (Spin-0, Spin-2 E, Spin-2 B).
+        """
+        if not (0 <= ell <= self.lmax):
+            raise ValueError(f"out-of-bounds ℓ={ell}")
+
+        if abs(m) > min(ell, self.mmax):
+            return 0j, 0j, 0j
+
+        idx = self.get_idx(ell, abs(m))
+
+        val_i = self.alm_i[idx]
+        val_e = self.alm_e[idx]
+        val_b = self.alm_b[idx]
+
+        if m < 0:
+            phase = (-1) ** abs(m)
+            val_i = phase * np.conj(val_i)
+            val_e = phase * np.conj(val_e)
+            val_b = phase * np.conj(val_b)
+
+        return val_i, val_e, val_b
+
+    def angular_power_spectra(
+        self, ell_start: int = 2
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """
+        Return the angular power spectra C_ℓ for I, E e B.
+
+        Args:
+            ell_start: The first multipole to compute. The default is 2, which is the
+            typical value for polarized beams
+
+        Returns:
+            A 4-element tuple (ells, C_ℓ^I, C_ℓ^E, C_ℓ^B).
+        """
+        ells = np.arange(ell_start, self.lmax + 1)
+        cl_i = np.zeros_like(ells, dtype=float)
+        cl_e = np.zeros_like(ells, dtype=float)
+        cl_b = np.zeros_like(ells, dtype=float)
+
+        for i, ell in enumerate(ells):
+            # 1. Termine m = 0 (nessuna simmetria, contato una volta sola)
+            idx_0 = self.get_idx(ell, 0)
+            sum_i = np.abs(self.alm_i[idx_0]) ** 2
+            sum_e = np.abs(self.alm_e[idx_0]) ** 2
+            sum_b = np.abs(self.alm_b[idx_0]) ** 2
+
+            # 2. Termini m > 0 (contati due volte per riflettere anche m < 0)
+            for m in range(1, min(ell, self.mmax) + 1):
+                idx = self.get_idx(ell, m)
+                sum_i += 2 * (np.abs(self.alm_i[idx]) ** 2)
+                sum_e += 2 * (np.abs(self.alm_e[idx]) ** 2)
+                sum_b += 2 * (np.abs(self.alm_b[idx]) ** 2)
+
+            # 3. Normalizzazione
+            cl_i[i] = sum_i / (2 * ell + 1)
+            cl_e[i] = sum_e / (2 * ell + 1)
+            cl_b[i] = sum_b / (2 * ell + 1)
+
+        return ells, cl_i, cl_e, cl_b
