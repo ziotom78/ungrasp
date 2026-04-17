@@ -1,2 +1,6 @@
+[src]
+include = ["src", "tests"]
+exclude = ["paper"]
+
 [analysis]
 allowed-unresolved-imports = ["ducc0"]

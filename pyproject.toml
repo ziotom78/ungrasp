@@ -45,7 +45,3 @@ visualization = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--cov=src/ungrasp"
-
-[tool.ty.src]
-include = ["src", "tests"]
-exclude = ["paper"]
