@@ -473,7 +473,7 @@ class ElectricField:
         >>> efield.show_3d(mode=MapMode.PHASE_THETA, polarization=Polarization.LUDWIG3_X)
         """
         try:
-            import plotly.graph_objects as go
+            import plotly.graph_objects as go  # ty: ignore[unresolved-import]
         except ImportError:
             print(
                 "Plotly not found. Install it using 'uv add --group visualization plotly'"

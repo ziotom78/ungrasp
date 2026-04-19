@@ -2,13 +2,12 @@ import ungrasp
 
 import gzip
 import numpy as np
-from utils import get_reference_file_path
 
 import pytest
 
 
 def get_gaussian_beam() -> ungrasp.ElectricField:
-    with gzip.open(get_reference_file_path("gaussian_beam.sph.gz"), "rt") as f:
+    with gzip.open(ungrasp.get_test_data_path("gaussian_beam.sph.gz"), "rt") as f:
         grasp_file = ungrasp.read_sph_file(f)
         assert grasp_file.num_of_blocks == 1
         return ungrasp.ElectricField.from_frequency_block(grasp_file.get(index=0))

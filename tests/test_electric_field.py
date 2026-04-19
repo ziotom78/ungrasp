@@ -5,7 +5,7 @@ import numpy as np
 import numpy.testing as npt
 
 import pytest
-from utils import get_reference_file_path, load_grd_file
+from utils import load_grd_file
 
 
 @pytest.mark.parametrize(
@@ -27,13 +27,13 @@ def test_asymmetric_field(
     # Here we read a “hard” pattern: an asymmetric main lobe with diffraction
     # sidelobes produced by a rectangular hor
 
-    with gzip.open(get_reference_file_path("asymmetric_swe.sph.gz"), "rt") as f:
+    with gzip.open(ungrasp.get_test_data_path("asymmetric_swe.sph.gz"), "rt") as f:
         grasp_file = ungrasp.read_sph_file(f)
     assert grasp_file.num_of_blocks == 1
 
     electric_field = ungrasp.ElectricField.from_frequency_block(grasp_file.get(index=0))
 
-    with gzip.open(get_reference_file_path(data_file), "rt") as f:
+    with gzip.open(ungrasp.get_test_data_path(data_file), "rt") as f:
         grid = load_grd_file(f, expected_header=expected_header)
 
     e_theta, e_phi = electric_field.evaluate_grid(
@@ -66,7 +66,7 @@ def test_asymmetric_field(
 
 
 def load_dipole_sph(file_name: str):
-    with open(get_reference_file_path(file_name), "rt") as f:
+    with open(ungrasp.get_test_data_path(file_name), "rt") as f:
         grasp = ungrasp.read_sph_file(f)
         return ungrasp.ElectricField.from_frequency_block(grasp.get(0))
 

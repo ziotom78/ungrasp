@@ -5,8 +5,6 @@ import numpy as np
 import numpy.testing as npt
 
 import pytest
-from utils import get_reference_file_path
-
 
 DATA_DIR = Path(__file__).parent / "data"
 SQRT_2 = np.sqrt(2)
@@ -30,7 +28,7 @@ SQRT_2 = np.sqrt(2)
     ],
 )
 def test_hertzian_dipoles(data_file, reference):
-    with (get_reference_file_path(data_file)).open("rt") as f:
+    with (ungrasp.get_test_data_path(data_file)).open("rt") as f:
         grasp_file = ungrasp.read_sph_file(f)
 
     assert grasp_file.num_of_blocks == 1
@@ -57,7 +55,7 @@ def test_hertzian_dipoles(data_file, reference):
 
 
 def test_read_multi_frequency(data_dir):
-    with (get_reference_file_path("multi_frequency.sph")).open("rt") as f:
+    with (ungrasp.get_test_data_path("multi_frequency.sph")).open("rt") as f:
         grasp_file = ungrasp.read_sph_file(f)
 
     assert grasp_file.num_of_blocks == 2
@@ -68,7 +66,7 @@ def test_read_multi_frequency(data_dir):
 def test_convert_to_electric_field(data_dir):
 
     def get_coeffs(file_name: str, ell: int, m: int):
-        with (get_reference_file_path(file_name)).open("rt") as f:
+        with (ungrasp.get_test_data_path(file_name)).open("rt") as f:
             grasp_file = ungrasp.read_sph_file(f)
 
         assert grasp_file.num_of_blocks == 1

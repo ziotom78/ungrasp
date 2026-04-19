@@ -4,11 +4,9 @@ import numpy as np
 import numpy.testing as npt
 import pytest
 
-from utils import get_reference_file_path
-
 
 def get_beam_alm(file_name: str) -> ungrasp.Beam:
-    with (get_reference_file_path(file_name)).open("rt") as f:
+    with (ungrasp.get_test_data_path(file_name)).open("rt") as f:
         grasp_file = ungrasp.read_sph_file(f)
 
     electric_field = ungrasp.ElectricField.from_frequency_block(grasp_file.get(index=0))

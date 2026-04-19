@@ -1,13 +1,7 @@
 from dataclasses import dataclass
-from pathlib import Path
 from typing import TextIO
 
 import numpy as np
-
-
-def get_reference_file_path(filename: str) -> Path:
-    """Return the path to a test file"""
-    return Path(__file__).parent / "data" / filename
 
 
 @dataclass

@@ -45,3 +45,6 @@ visualization = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--cov=src/ungrasp"
+
+[tool.uv_build]
+include = ["src/ungrasp/test_data/**/*"]
