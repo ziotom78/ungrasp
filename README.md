@@ -52,11 +52,16 @@ We use dependency groups to keep the environment lean. Depending on your task, s
     uv sync --group dev
     ```
 
-
 -   Visualization & Research (JupyterLab, Matplotlib, Plotting):
 
     ```sh
     uv sync --group dev --group visualization
+    ```
+
+-   Documentation:
+
+    ```sh
+    uv sync --group docs
     ```
 
 -   Minimal/Production (Library only):
@@ -65,17 +70,33 @@ We use dependency groups to keep the environment lean. Depending on your task, s
     uv sync
     ```
 
+### Building the documentation
+
+The documentation is built using Sphinx. To build the HTML manual locally, simply use Nox:
+
+```sh
+uv run nox -s docs
+```
+
+The generated HTML files will be available in the `docs/_build/html` directory. You can open `docs/_build/html/index.html` in your web browser.
+
+Alternatively, if you prefer to build the documentation without Nox, ensure you have synced the `docs` dependency group, then run:
+
+```sh
+uv run sphinx-build -b html docs/ docs/_build/html
+```
+
 ### Working with Notebooks
 
 If you are debugging or visually inspecting results using the visualization group, we recommend using the integrated Jupyter kernel.
 
 -   Using VS Code / Cursor:
 
-    #.   Open a .ipynb file.
+    1.   Open a .ipynb file.
 
-    #.   Select the kernel associated with the .venv created by uv.
+    2.   Select the kernel associated with the .venv created by uv.
 
-    #.   If the kernel isn't detected, ensure you have run `uv sync --group visualization`.
+    3.   If the kernel isn't detected, ensure you have run `uv sync --group visualization`.
 
 -   Using JupyterLab:
 

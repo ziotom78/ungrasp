@@ -50,3 +50,19 @@ def test_install(session):
         "print(f'Test data successfully found at: {path}')"
     )
     session.run("python", "-c", script)
+
+
+@nox.session
+def docs(session):
+    """Build the documentation using Sphinx."""
+    session.run("uv", "sync", "--group", "docs", external=True)
+    session.run(
+        "uv",
+        "run",
+        "sphinx-build",
+        "-b",
+        "html",
+        "docs/",
+        "docs/_build/html",
+        external=True,
+    )

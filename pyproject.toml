@@ -41,6 +41,10 @@ visualization = [
     "ipywidgets>=8.1.8",
     "plotly>=6.5.2",
 ]
+docs = [
+    "sphinx>=8.2.1",
+    "sphinx-rtd-theme>=3.0.2",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

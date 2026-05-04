@@ -1,3 +1,5 @@
+# -*- encoding: utf-8 -*-
+
 from dataclasses import dataclass
 import numpy as np
 from enum import Enum
@@ -64,8 +66,8 @@ class MapMode:
     components into scalar values for visualization and analysis.
 
     This class serves as a namespace for standard transformations. Each method
-    takes the complex $E_\\theta$ and $E_\\phi$ components (as NumPy arrays) and
-    returns a single real-valued array of the same shape.
+    takes the complex :math:`E_\\theta` and :math:`E_\\phi` components (as
+    NumPy arrays) and returns a single real-valued array of the same shape.
     """
 
     @staticmethod
@@ -73,7 +75,7 @@ class MapMode:
         """
         Calculate the total power intensity of the field.
 
-        Formula: $I = |E_\\theta|^2 + |E_\\phi|^2$
+        Formula: :math:`I = |E_\\theta|^2 + |E_\\phi|^2`
         """
         return np.abs(e_theta) ** 2 + np.abs(e_phi) ** 2
 
@@ -82,38 +84,38 @@ class MapMode:
         """
         Calculate the total magnitude of the electric field vector.
 
-        Formula: $A = \\sqrt{|E_\\theta|^2 + |E_\\phi|^2}$
+        Formula: :math:`A = \\sqrt{|E_\\theta|^2 + |E_\\phi|^2}`
         """
         return np.sqrt(np.abs(e_theta) ** 2 + np.abs(e_phi) ** 2)
 
     @staticmethod
     def phase_theta(e_theta: np.ndarray, e_phi: np.ndarray) -> np.ndarray:
-        """Calculate the phase angle of the $\\theta$ component in radians."""
+        """Calculate the phase angle of the ϑ component in radians."""
         return np.angle(e_theta)
 
     @staticmethod
     def phase_phi(e_theta: np.ndarray, e_phi: np.ndarray) -> np.ndarray:
-        """Calculate the phase angle of the $\\phi$ component in radians."""
+        """Calculate the phase angle of the :math:`\\phi` component in radians."""
         return np.angle(e_phi)
 
     @staticmethod
     def re_theta(e_theta: np.ndarray, e_phi: np.ndarray) -> np.ndarray:
-        """Extract the real part of the $\\theta$ component."""
+        """Extract the real part of the ϑ component."""
         return np.real(e_theta)
 
     @staticmethod
     def im_theta(e_theta: np.ndarray, e_phi: np.ndarray) -> np.ndarray:
-        """Extract the imaginary part of the $\\theta$ component."""
+        """Extract the imaginary part of the ϑ component."""
         return np.imag(e_theta)
 
     @staticmethod
     def re_phi(e_theta: np.ndarray, e_phi: np.ndarray) -> np.ndarray:
-        """Extract the real part of the $\\phi$ component."""
+        """Extract the real part of the φ component."""
         return np.real(e_phi)
 
     @staticmethod
     def im_phi(e_theta: np.ndarray, e_phi: np.ndarray) -> np.ndarray:
-        """Extract the imaginary part of the $\\phi$ component."""
+        """Extract the imaginary part of the φ component."""
         return np.imag(e_phi)
 
     @staticmethod
@@ -122,7 +124,7 @@ class MapMode:
         Calculate the intensity in decibels (dB), normalized to the peak
         value within the provided field arrays.
 
-        Formula: $10 \\log_{10}(I / I_{max})$
+        Formula: :math:`10 \\log_{10}(I / I_{\\text{max}})`
         """
         int_map = MapMode.intensity(e_theta, e_phi)
         return 10 * np.log10(int_map / (np.max(int_map) + 1e-20))
@@ -147,6 +149,29 @@ class MapMode:
 
 
 class ElectricField:
+    """
+    An electric field represented using a set of spin-1 spherical harmonics.
+
+    This class is the core of the library, providing the bridge between the raw
+    spherical wave expansion coefficients from GRASP and a manipulable,
+    physical representation of the beam. It stores the field as a set of
+    spin-1 spherical harmonic coefficients (:math:`a_{\\ell m}`) and provides methods
+    to transform, project, and analyze the beam.
+
+    The coefficients are derived from the GRASP :math:`Q_{smn}` coefficients and
+    normalized to represent the far-field electric field vector. This class
+    serves as the foundation for all subsequent operations, including conversion
+    to Stokes parameters, rotation, and visualization.
+
+    Attributes:
+        frequency_ghz (float): The frequency of the monochromatic field in GHz.
+        lmax (int): The maximum multipole order :math:`\\ell` of the expansion.
+        mmax (int): The maximum azimuthal order :math:`m` of the expansion.
+        alm_stack (np.ndarray): A NumPy array of shape `(4, nalm)` containing
+            the complex spherical harmonic coefficients. These represent the
+            real and imaginary parts of the electric and magnetic potentials.
+    """
+
     def __init__(
         self,
         frequency_ghz: float,
@@ -163,6 +188,23 @@ class ElectricField:
 
     @classmethod
     def from_frequency_block(cls, freq_block: FrequencyBlock):
+        """
+        Create an ElectricField instance from a FrequencyBlock.
+
+        This class method converts the raw :math:`Q_{smn}` coefficients from a
+        `ungrasp.FrequencyBlock` into the spin-1 spherical harmonic
+        coefficients (:math:`a_{\\ell m}`) that represent the electric field.
+        The coefficients are normalized to ensure consistency with standard
+        spherical harmonic conventions.
+
+        Args:
+            freq_block (FrequencyBlock): An instance of `ungrasp.FrequencyBlock` containing the
+                GRASP spherical wave expansion coefficients for a single frequency.
+
+        Returns:
+            ElectricField: A new `ElectricField` instance initialized with the
+                converted spherical harmonic coefficients.
+        """
         nalm = ElectricField._num_of_alms(
             freq_block.header.lmax, freq_block.header.mmax
         )
@@ -186,7 +228,7 @@ class ElectricField:
 
     @staticmethod
     def _get_idx(ell: int, m: int, lmax: int) -> int:
-        "Return the index of an a_ℓm coefficient in a Healpix/ducc0 array"
+        """Return the index of an a_ℓm coefficient in a Healpix/ducc0 array."""
         return m * (2 * lmax + 1 - m) // 2 + ell
 
     def get_alms(
@@ -290,16 +332,33 @@ class ElectricField:
         nphi: int,
         polarization: Polarization,
         epsilon: float = 1e-8,
+        use_grasp_phase: bool = False,
     ) -> tuple[np.ndarray, np.ndarray]:
         """
-        Evaluate the field on an arbitrary grid.
+        Evaluate the electric field on an arbitrary 2D grid of spherical coordinates.
+
+        This method projects the spherical harmonic coefficients onto a user-defined
+        grid in real space, allowing for flexible sampling of the beam. The output
+        components depend on the chosen polarization basis.
 
         Args:
-            polarization: the polarization to use (see :class:`Polarization`).
+            theta_start_rad (float): Starting colatitude (polar angle) in radians (0 to pi).
+            theta_end_rad (float): Ending colatitude (polar angle) in radians (0 to pi).
+            ntheta (int): Number of samples along the colatitude (theta) direction.
+            phi_start_rad (float): Starting longitude (azimuthal angle) in radians (0 to 2*pi).
+            phi_end_rad (float): Ending longitude (azimuthal angle) in radians (0 to 2*pi).
+            nphi (int): Number of samples along the longitude (phi) direction.
+            polarization (Polarization): The polarization basis to use for the output components
+                (see `ungrasp.Polarization`).
+            epsilon (float, optional): Desired accuracy for the spherical harmonic transform, by default 1e-8.
+            use_grasp_phase (bool, optional): If ``True``, the complex conjugate of the field components is returned
+                to match TICRA GRASP convention for ``.cut`` and ``.grd`` files.
+                By default ``False``.
 
         Returns:
-            (Comp1, Comp2): Complex field components. Each of them is a 2D array
-              with shape ``(ntheta, nphi)``
+            tuple[np.ndarray, np.ndarray]: A tuple containing two complex NumPy arrays, (Comp1, Comp2).
+                Each array has shape ``(ntheta, nphi)`` and represents the
+                field components in the specified polarization basis.
         """
         theta = np.linspace(theta_start_rad, theta_end_rad, num=ntheta)
         phi = np.linspace(phi_start_rad, phi_end_rad, num=nphi)
@@ -332,9 +391,13 @@ class ElectricField:
         e_theta = (map_vec_re[0] + 1j * map_vec_im[0]).reshape((ntheta, nphi))
         e_phi = (map_vec_re[1] + 1j * map_vec_im[1]).reshape((ntheta, nphi))
 
-        return _apply_polarization(
+        result = _apply_polarization(
             e_theta=e_theta, e_phi=e_phi, phi_grid=phi_grid, polarization=polarization
         )
+        if use_grasp_phase:
+            return np.conj(result[0]), np.conj(result[1])
+        else:
+            return result
 
     def evaluate_cut(
         self,
@@ -344,8 +407,31 @@ class ElectricField:
         ntheta: int,
         polarization: Polarization,
         epsilon=1e-8,
-    ):
-        """Extract a 1D cut at a constant phi."""
+        use_grasp_phase: bool = False,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Extract a 1D cut of the electric field at a constant azimuthal angle.
+
+        This method evaluates the electric field along a specific meridian (constant phi)
+        over a range of colatitudes. It's useful for analyzing beam patterns in a single plane.
+
+        Args:
+            phi_angle_rad (float): The constant azimuthal angle (longitude) in radians for the cut.
+            theta_start_rad (float): Starting colatitude (polar angle) in radians (0 to pi).
+            theta_end_rad (float): Ending colatitude (polar angle) in radians (0 to pi).
+            ntheta (int): Number of samples along the colatitude (theta) direction for the cut.
+            polarization (Polarization): The polarization basis to use for the output components
+                (see `ungrasp.Polarization`).
+            epsilon (float, optional): Desired accuracy for the spherical harmonic transform, by default 1e-8.
+            use_grasp_phase (bool, optional): If ``True``, the complex conjugate of the field components is returned
+                to match TICRA GRASP convention for ``.cut`` and ``.grd`` files.
+                By default ``False``.
+
+        Returns:
+            tuple[np.ndarray, np.ndarray]: A tuple containing two complex NumPy arrays, (Comp1, Comp2).
+                Each array has shape ``(ntheta,)`` and represents the
+                field components along the 1D cut in the specified polarization basis.
+        """
 
         e1, e2 = self.evaluate_grid(
             theta_start_rad=theta_start_rad,
@@ -356,6 +442,7 @@ class ElectricField:
             nphi=1,
             polarization=polarization,
             epsilon=epsilon,
+            use_grasp_phase=use_grasp_phase,
         )
 
         return e1.flatten(), e2.flatten()
@@ -380,7 +467,7 @@ class ElectricField:
         Args:
             shape (tuple[int, int], optional): Texture resolution ``(n_theta, n_phi)``.
             mode (str | MapMode | Callable): Define how to transform the
-                complex components of the field $(E_\\theta, E_\\phi)$ into
+                complex components of the field (:math:`E_\\theta, E_\\phi`) into
                 scalar values. It can either be a member of :class:`MapMode`,
                 a string (``db``, ``phase_theta``, etc.), or a custom function
                 that accepts the two NumPy arrays ``e_theta`` and ``e_phi`` and
@@ -392,12 +479,14 @@ class ElectricField:
             np.ndarray: 2D array of ``float64`` with size `shape`.
 
         Example:
-            >>> # Get a representation of the intensity of the field in dB
-            >>> texture_db = efield.to_texture(shape=(400, 800), mode="db")
-            >>>
-            >>> # Use a custom function to map the data to a scalar
-            >>> my_map = lambda et, ep: np.abs(et) / (np.abs(ep) + 1e-10)
-            >>> ratio_texture = efield.to_texture(mode=my_map)
+            .. code-block:: python
+
+                # Get a representation of the intensity of the field in dB
+                texture_db = efield.to_texture(shape=(400, 800), mode="db")
+
+                # Use a custom function to map the data to a scalar
+                my_map = lambda et, ep: np.abs(et) / (np.abs(ep) + 1e-10)
+                ratio_texture = efield.to_texture(mode=my_map)
         """
         n_theta, n_phi = shape
         e_theta, e_phi = self.evaluate_grid(
@@ -434,43 +523,39 @@ class ElectricField:
         environments to allow real-time rotation, zooming, and inspection of
         beam features like sidelobes and phase patterns.
 
-        Parameters
-        ----------
-        shape : tuple[int, int], optional
-            The resolution in pixels of the spherical mesh as ``(n_theta, n_phi)``.
-            Higher values increase detail but may impact rendering performance.
-        mode : str | MapMode | Callable, optional
-            The mapping function used to convert complex field components
-            ($E_\\theta, E_\\phi$) into scalar values. Accepts:
-            - A `MapMode` enum member (e.g., `MapMode.DB`).
-            - A string key (e.g., "db", "phase_theta").
-            - A custom callable: `f(E_theta, E_phi) -> scalar_array`.
-        polarization : Polarization, optional
-            The polarization basis used to evaluate the field (e.g., THETA_PHI,
-            LUDWIG3_X).
+        Args:
+            shape (tuple[int, int], optional): The resolution in pixels of the spherical mesh as ``(n_theta, n_phi)``.
+                Higher values increase detail but may impact rendering performance.
+            mode (str | MapMode | Callable, optional): The mapping function used to convert complex field components
+                (:math:`E_\\theta, E_\\phi`) into scalar values. Accepts:
 
-        Returns
-        -------
-        plotly.graph_objects.Figure
-            An interactive Plotly Figure object. In Jupyter environments,
-            returning this object will render the widget in the cell output.
+                - A `MapMode` enum member (e.g., `MapMode.DB`).
+                - A string key (e.g., "db", "phase_theta").
+                - A custom callable: `f(e_theta, e_phi) -> scalar_array`.
 
-        Notes
-        -----
-        - This method requires `plotly` to be installed.
-        - If ripples or high-frequency features are not visible, try increasing
-          the `shape` resolution to improve the sampling density of the mesh.
-        - To ensure proper rendering in JupyterLab, a kernel restart might be
-          required if WebGL context issues occur.
+            polarization (Polarization, optional): The polarization basis used to evaluate the field (e.g., THETA_PHI,
+                LUDWIG3_X).
 
-        Examples
-        --------
-        >>> # Visualize the beam intensity in dB
-        >>> efield.show_3d(mode="db")
+        Returns:
+            plotly.graph_objects.Figure: An interactive Plotly Figure object. In Jupyter environments,
+                returning this object will render the widget in the cell output.
 
-        >>> # Inspect the phase of the Ludwig-3 X-polarized component
-        >>> from ungrasp import MapMode, Polarization
-        >>> efield.show_3d(mode=MapMode.PHASE_THETA, polarization=Polarization.LUDWIG3_X)
+        Notes:
+            - This method requires `plotly` to be installed.
+            - If ripples or high-frequency features are not visible, try increasing
+              the `shape` resolution to improve the sampling density of the mesh.
+            - To ensure proper rendering in JupyterLab, a kernel restart might be
+              required if WebGL context issues occur.
+
+        Example:
+            .. code-block:: python
+
+                # Visualize the beam intensity in dB
+                efield.show_3d(mode="db")
+
+                # Inspect the phase of the Ludwig-3 X-polarized component
+                from ungrasp import MapMode, Polarization
+                efield.show_3d(mode=MapMode.PHASE_THETA, polarization=Polarization.LUDWIG3_X)
         """
         try:
             import plotly.graph_objects as go  # ty: ignore[unresolved-import]
@@ -563,18 +648,13 @@ class ElectricField:
         peak of the beam. It then evaluates the Ludwig-3 cross-polarization
         ratio at the peak to determine the polarization orientation.
 
-        Parameters
-        ----------
-        region_theta_rad : tuple[float, float, int], optional
-            The search region for the elevation angle as (start, end, samples).
-        region_phi_rad : tuple[float, float, int], optional
-            The search region for the azimuthal angle as (start, end, samples).
+        Args:
+            region_theta_rad (tuple[float, float, int], optional): The search region for the elevation angle as (start, end, samples).
+            region_phi_rad (tuple[float, float, int], optional): The search region for the azimuthal angle as (start, end, samples).
 
-        Returns
-        -------
-        tuple[float, float, float]
-            The coordinates of the peak and its polarization twist in radians:
-            (theta_peak, phi_peak, psi_pol).
+        Returns:
+            tuple[float, float, float]: The coordinates of the peak and its polarization twist in radians:
+                (theta_peak, phi_peak, psi_pol).
         """
 
         # Sample the region where the maximum is
@@ -644,7 +724,7 @@ class ElectricField:
         )
         psi_pol = float(np.angle(e_co[0, 0] + 1j * e_cx[0, 0]))
 
-        return (float(theta_peak), float(phi_peak), psi_pol)
+        return float(theta_peak), float(phi_peak), psi_pol
 
     def get_alignment_angles(
         self,
@@ -658,16 +738,15 @@ class ElectricField:
         Euler rotation needed to bring the peak to the +Z axis and align the
         copolar direction with the +X axis.
 
-        Returns
-        -------
-        dict[str, float]
-            A dictionary containing the keys `psi_rad`, `theta_rad`, and `phi_rad`.
-            This can be unpacked directly into the `rotate` method.
+        Returns:
+            dict[str, float]: A dictionary containing the keys `psi_rad`, `theta_rad`, and `phi_rad`.
+                This can be unpacked directly into the :meth:`.rotate` method.
 
-        Example
-        -------
-        >>> angles = efield.get_alignment_angles()
-        >>> aligned_efield = efield.rotate(**angles)
+        Example:
+            .. code-block:: python
+
+                angles = efield.get_alignment_angles()
+                aligned_efield = efield.rotate(**angles)
         """
         theta, phi, psi = self.find_peak(region_theta_rad, region_phi_rad)
 
@@ -686,12 +765,39 @@ class ElectricField:
 
 @dataclass
 class Beam:
-    alm_i: np.ndarray  # Spin-0
-    alm_e: np.ndarray  # Spin-2
-    alm_b: np.ndarray  # Spin-2
+    """
+    A beam pattern decomposed into Stokes parameters (I, Q, U) via spherical harmonics
+    (Spin-0 and Spin-2).
+
+    Unlike :py:class:`ungrasp.ElectricField` which uses physical components
+    (:math:`E_\\theta, E_\\phi`), this class provides a representation suitable for
+    CMB data analysis and beam convolution libraries. The field is described
+    using the standard CMB convention:
+
+    - :math:`a_{\\ell m}^I`: Spin-0 harmonic coefficients representing the total intensity (Stokes I).
+
+    - :math:`a_{\\ell m}^E`: Spin-2 harmonic coefficients (E-mode) representing gradient-like polarization.
+
+    - :math:`a_{\\ell m}^B`: Spin-2 harmonic coefficients (B-mode) representing curl-like polarization.
+    """
+
+    alm_i: np.ndarray
+    """1D array of Stokes I harmonic coefficients (:math:`a_{\\ell m}^I`)."""
+
+    alm_e: np.ndarray
+    """1D array of Stokes Q/U E-mode harmonic coefficients (:math:`a_{\\ell m}^E`)."""
+
+    alm_b: np.ndarray
+    """1D array of Stokes Q/U B-mode harmonic coefficients (:math:`a_{\\ell m}^B`)."""
+
     lmax: int
+    """Maximum multipole order (:math:`\\ell`) for the spherical harmonic expansion."""
+
     mmax: int
+    """Maximum azimuthal order (:math:`m`) for the spherical harmonic expansion."""
+
     frequency_ghz: float | None = None
+    """The frequency of the beam in GHz, if known."""
 
     @classmethod
     def from_electric_field(
@@ -700,6 +806,24 @@ class Beam:
         lmax: int | None = None,
         mmax: int | None = None,
     ) -> "Beam":
+        """
+        Convert an `ElectricField` object into a `Beam` object.
+
+        This method projects the :math:`E_\\theta` and :math:`E_\\phi` components over a spatial
+        Gauss-Legendre grid, computes the local Stokes parameters (:math:`I, Q, U`),
+        and then performs a Spin-0 and Spin-2 spherical harmonic transform to
+        extract the :math:`I, E, B` coefficients.
+
+        Args:
+            electric_field (ElectricField): The input electric field object.
+            lmax (int | None, optional): The maximum multipole order :math:`\\ell` to compute.
+                If `None`, it defaults to the `lmax` of the input field.
+            mmax (int | None, optional): The maximum azimuthal order :math:`m` to compute.
+                If `None`, it defaults to `lmax`.
+
+        Returns:
+            Beam: A new instance populated with the computed harmonic coefficients.
+        """
         E_theta, E_phi = electric_field.project_to_gl()
         assert E_theta.shape == E_phi.shape
 
@@ -738,27 +862,42 @@ class Beam:
         )
 
     def get_idx(self, ell: int, m: int) -> int:
-        """Return the index of the a_ℓm coefficient given (ℓ, m)
+        """
+        Return the index of an :math:`a_{\\ell m}` coefficient given a specific (:math:`\\ell, m`) pair.
 
-        Note that only coefficients with m≥0 are stored in the object,
-        so the function will fail if m<0.
+        Note that only coefficients with :math:`m \\geq 0` are stored in the object,
+        so the function will raise an ``AssertionError`` if :math:`m < 0`.
+
+        Args:
+            ell (int): Multipole order (:math:`\\ell`).
+            m (int): Azimuthal order (:math:`m \\geq 0`).
 
         Returns:
-            The zero-based index in the a_ℓm array
+            int: The zero-based index in the underlying coefficient arrays (`alm_i`, etc.).
         """
-        assert ell >= 0
-        assert m >= 0
-        assert m <= ell
+        assert ell >= 0, "ℓ={ell} cannot be negative"
+        assert m >= 0, "m={m} cannot be negative"
+        assert m <= ell, f"{m=} > {ell=} cannot be greater than ℓ={ell}"
         return m * (2 * self.lmax + 1 - m) // 2 + ell
 
     def get_alms(self, ell: int, m: int) -> tuple[complex, complex, complex]:
         """
-        Return (alm_i, alm_e, alm_b) for a given pair (ℓ, m)
+        Retrieve the harmonic coefficients (:math:`a_{\\ell m}^I, a_{\\ell m}^E, a_{\\ell m}^B`)
+        for a given pair (:math:`\\ell, m`).
 
-        This method can be used with negative and positive m.
+        This method supports both positive and negative values of :math:`m`. When :math:`m < 0`,
+        the coefficients are conjugated and the phase symmetry factor :math:`(-1)^m` is applied.
+
+        Args:
+            ell (int): Multipole order :math:`\\ell`.
+            m (int): Azimuthal order :math:`m`. Can be negative.
 
         Returns:
-            A 3-element tuple containing the harmonic coefficients (Spin-0, Spin-2 E, Spin-2 B).
+            tuple[complex, complex, complex]: A 3-element tuple containing the harmonic
+                coefficients for Stokes I (Spin-0), E-mode (Spin-2), and B-mode (Spin-2).
+
+        Raises:
+            ValueError: If :math:`\\ell` is out of bounds (:math:`\\ell < 0` or :math:`\\ell > lmax`).
         """
         if not (0 <= ell <= self.lmax):
             raise ValueError(f"out-of-bounds ℓ={ell}")
@@ -784,14 +923,23 @@ class Beam:
         self, ell_start: int = 2
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """
-        Return the angular power spectra C_ℓ for I, E e B.
+        Compute the angular power spectra (:math:`C_\\ell`) for I, E, and B modes.
+
+        The angular power spectrum describes the variance of the coefficients at each
+        multipole :math:`\\ell`, summing over all valid :math:`m`.
 
         Args:
-            ell_start: The first multipole to compute. The default is 2, which is the
-            typical value for polarized beams
+            ell_start (int, optional): The first multipole to compute. Defaults to 2,
+                which is typically the lowest meaningful order for polarized beams.
 
         Returns:
-            A 4-element tuple (ells, C_ℓ^I, C_ℓ^E, C_ℓ^B).
+            tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]: A 4-element tuple
+                containing 1D arrays:
+
+                - `ells`: The multipole sequence (from `ell_start` to `lmax`).
+                - `C_ℓ^I`: Power spectrum of intensity.
+                - `C_ℓ^E`: Power spectrum of E-mode polarization.
+                - `C_ℓ^B`: Power spectrum of B-mode polarization.
         """
         ells = np.arange(ell_start, self.lmax + 1)
         cl_i = np.zeros_like(ells, dtype=float)

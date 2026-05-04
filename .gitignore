@@ -6,6 +6,7 @@ dist/
 wheels/
 *.egg-info
 .idea/
+docs/_build
 .python-version
 .coverage
 

@@ -27,6 +27,19 @@ class SphFileHeader:
 
     @classmethod
     def read(cls, f: TextIO) -> "SphFileHeader":
+        """
+        Read the header of a `.sph` file.
+
+        Args:
+            f (TextIO): The file-like object to read from.
+
+        Returns:
+            SphFileHeader: An instance representing the file header.
+
+        Raises:
+            EOFError: If the end of the file is reached unexpectedly.
+            SphFormatError: If the header is malformed.
+        """
         frequency_line = f.readline().strip()
         if frequency_line == "":
             raise EOFError
@@ -79,7 +92,7 @@ class SphFileHeader:
 
 
 class FrequencyBlock:
-    """Store the values of Q_smn for one frequency in a GRASP .sph file"""
+    """Store the values of :math:`Q_{smn}` for one frequency in a GRASP `.sph` file"""
 
     @staticmethod
     def _q_array_shape(mmax: int, nmax: int) -> tuple[int, int, int]:
@@ -91,6 +104,15 @@ class FrequencyBlock:
         q_array: np.ndarray | None = None,
         cum_power: float = 0.0,
     ):
+        """
+        Initialize a FrequencyBlock.
+
+        Args:
+            header (SphFileHeader): The header information associated with this block.
+            q_array (np.ndarray | None, optional): The array of :math:`Q_{smn}` values.
+                If not provided, it is initialized to zero.
+            cum_power (float, optional): The cumulative power of the field.
+        """
         self.header = header
         self.cum_power = cum_power
 
@@ -111,7 +133,7 @@ class FrequencyBlock:
         return self.header.frequency_ghz
 
     def _index(self, s: int, m: int, n: int) -> tuple[int, int, int] | None:
-        """Return the position of the Q value corresponding to the indexes smn.
+        """Return the position of the :math:`Q` value corresponding to the indexes :math:`smn`.
 
         The position is a tuple `(s, m, n)`
         The index `s` can either be 1 or 2; index `m` goes from −n to +n,
@@ -122,7 +144,17 @@ class FrequencyBlock:
         return (s - 1, n - 1, m + self.header.mmax)
 
     def get_q(self, s: int, m: int, n: int) -> complex:
-        """Return the Q value corresponding to the indexes smn."""
+        """
+        Return the Q value corresponding to the indexes :math:`s`, :math:`m`, :math:`n`.
+
+        Args:
+            s (int): The index :math:`s` (1 or 2).
+            m (int): The index :math:`m`.
+            n (int): The index :math:`n`.
+
+        Returns:
+            complex: The complex coefficient :math:`Q_{smn}`. Returns `0.0j` if out of bounds.
+        """
         pos = self._index(s, m, n)
         if not pos:
             return 0.0j
@@ -130,7 +162,15 @@ class FrequencyBlock:
         return self.q_array[pos]
 
     def set_q(self, s: int, m: int, n: int, value: complex) -> None:
-        """Set the value of the Q corresponding to the indexes smn."""
+        """
+        Set the value of the :math:`Q_{smn}` corresponding to the indexes :math:`s`, :math:`m`, :math:`n`.
+
+        Args:
+            s (int): The index :math:`s` (1 or 2).
+            m (int): The index :math:`m`.
+            n (int): The index :math:`n`.
+            value (complex): The complex coefficient to store.
+        """
         pos = self._index(s, m, n)
         self.q_array[pos] = value
 
@@ -153,6 +193,19 @@ class FrequencyBlock:
 
     @classmethod
     def read(cls, f: TextIO, header: SphFileHeader) -> "FrequencyBlock":
+        """
+        Read a frequency block from a `.sph` file.
+
+        Args:
+            f (TextIO): The file-like object to read from.
+            header (SphFileHeader): The header information associated with this block.
+
+        Returns:
+            FrequencyBlock: A populated instance of FrequencyBlock.
+
+        Raises:
+            SphFormatError: If the block is malformed.
+        """
         result = cls(
             header=header,
             cum_power=0.0,
@@ -205,7 +258,13 @@ class SphFile:
 
         The first block has index 0.
 
-        See also :class:`FrequencyBlock`.
+        Args:
+            index (int): The 0-based index of the block to retrieve.
+
+        Returns:
+            FrequencyBlock: The frequency block at the given index.
+
+        See also :py:class:`FrequencyBlock`.
         """
         return self.frequency_blocks[index]
 
@@ -220,7 +279,13 @@ def read_sph_file(f: TextIO) -> SphFile:
     Parse a GRASP `.sph` file
 
     Parse a `.sph` file created by GRASP. The file can contain multiple
-    frequencies. Return a list of :class:`FrequencyBlock` objects.
+    frequencies. Return a list of :py:class:`FrequencyBlock` objects.
+
+    Args:
+        f (TextIO): The file-like object to read from.
+
+    Returns:
+        SphFile: The parsed spherical wave expansion file.
     """
 
     blocks = []
