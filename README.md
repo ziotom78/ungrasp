@@ -2,6 +2,10 @@
 
 This repository contains the source code of Ungrasp, a Python library that reads GRASP spherical harmonic files (`.sph`) and converts them into spin-2 Stokes a_ℓm coefficients suitable for beam convolution codes.
 
+Spherical Wave Expansion is a kind of representation of an electric field that GRASP can compute out of a reflector or a feed. They are suitable for fast rotation/resampling/convolution.
+
+![](TICRA-Tools-screenshot.png)
+
 ## Features
 
 -   **Parsing of `.sph` files**
