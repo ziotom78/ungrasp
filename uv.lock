@@ -3073,6 +3073,7 @@ dev = [
     { name = "ty" },
 ]
 docs = [
+    { name = "matplotlib" },
     { name = "sphinx", version = "9.0.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "sphinx", version = "9.1.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "sphinx-rtd-theme" },
@@ -3107,6 +3108,7 @@ dev = [
     { name = "ty", specifier = "==0.0.28" },
 ]
 docs = [
+    { name = "matplotlib", specifier = ">=3.10.8" },
     { name = "sphinx", specifier = ">=8.2.1" },
     { name = "sphinx-rtd-theme", specifier = ">=3.0.2" },
 ]

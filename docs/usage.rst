@@ -11,12 +11,13 @@ The first step is to load a `.sph` file and inspect its contents. Ungrasp allows
 .. doctest::
 
     >>> import ungrasp
+    >>> import gzip
     >>>
     >>> # Get a sample file path (included in the Ungrasp test suite)
     >>> path = ungrasp.get_test_data_path('gaussian_beam')
     >>>
     >>> # Parse the .sph file
-    >>> with path.open("rt") as f:
+    >>> with gzip.open(path, "rt") as f:
     ...     sph_file = ungrasp.read_sph_file(f)
     >>>
     >>> # Extract the frequency block
@@ -39,9 +40,20 @@ Once the raw coefficients are loaded, we can convert them into a physical :py:cl
 
 In this example, we extract a 1D cut of the field at a constant azimuthal angle (:math:`\phi = 0^\circ`) and print the complex co-polar and cross-polar components using Ludwig's 3rd polarization definition.
 
-.. doctest::
+.. testsetup:: ecut
+
+    import ungrasp
+    import gzip
+    import numpy as np
+    path = ungrasp.get_test_data_path('gaussian_beam')
+    with gzip.open(path, "rt") as f:
+        sph_file = ungrasp.read_sph_file(f)
+    freq_block = sph_file.get(0)
+
+.. doctest:: ecut
 
     >>> import numpy as np
+    >>> import matplotlib.pyplot as plt
     >>>
     >>> # Convert the raw coefficients to a manipulable Electric Field
     >>> efield = ungrasp.ElectricField.from_frequency_block(freq_block)
@@ -75,6 +87,43 @@ In this example, we extract a 1D cut of the field at a constant azimuthal angle 
     3.75            | 1.8693e-01      | 0.0000e+00      | 0.0000e+00      | 0.0000e+00
     5.00            | 8.4907e-02      | 0.0000e+00      | 0.0000e+00      | 0.0000e+00
 
+We can use `matplotlib` to plot the cut of the electric field. Here we evaluate more samples to have a smooth curve:
+
+.. plot::
+
+    import gzip
+    import ungrasp
+    import numpy as np
+    import matplotlib.pyplot as plt
+
+    path = ungrasp.get_test_data_path('gaussian_beam')
+    with gzip.open(path, "rt") as f:
+        sph_file = ungrasp.read_sph_file(f)
+    freq_block = sph_file.get(0)
+    efield = ungrasp.ElectricField.from_frequency_block(freq_block)
+
+    e_co, e_cx = efield.evaluate_cut(
+        phi_angle_rad=0.0,
+        theta_start_rad=0.0,
+        theta_end_rad=np.radians(15.0),
+        ntheta=200,
+        polarization=ungrasp.Polarization.LUDWIG3_X,
+    )
+    thetas = np.linspace(0, 10.0, 200)
+
+    power_co = 10 * np.log10(np.abs(e_co)**2 + 1e-20)
+    power_cx = 10 * np.log10(np.abs(e_cx)**2 + 1e-20)
+    peak = np.max(power_co)
+
+    plt.figure(figsize=(8, 5))
+    plt.plot(thetas, power_co - peak, label="Co-polar")
+    plt.plot(thetas, power_cx - peak, label=f"Cross-polar", linestyle="--")
+    plt.xlabel("Theta [deg]")
+    plt.ylabel("Normalized Power [dB]")
+    plt.title("Electric Field Cut at $\\phi=0^\\circ$")
+    plt.grid(True, alpha=0.3)
+    plt.legend()
+
 
 3. Converting to Stokes Parameters
 ----------------------------------
@@ -83,7 +132,19 @@ For Cosmic Microwave Background (CMB) analysis, beam convolution codes typically
 
 Ungrasp provides the :py:class:`ungrasp.Beam` class, which automatically performs this conversion, decomposing the beam into Spin-0 (Intensity) and Spin-2 (E-mode and B-mode polarization) spherical harmonics.
 
-.. doctest::
+.. testsetup:: stokes
+
+    import ungrasp
+    import gzip
+    import numpy as np
+    import matplotlib.pyplot as plt
+    path = ungrasp.get_test_data_path('gaussian_beam')
+    with gzip.open(path, "rt") as f:
+        sph_file = ungrasp.read_sph_file(f)
+    freq_block = sph_file.get(0)
+    efield = ungrasp.ElectricField.from_frequency_block(freq_block)
+
+.. doctest:: stokes
 
     >>> # Convert the electric field into a CMB-ready Beam object
     >>> # We limit the expansion to lmax=10 for speed
@@ -103,3 +164,37 @@ Ungrasp provides the :py:class:`ungrasp.Beam` class, which automatically perform
     4     | 9.6841e-04      | 8.0061e-04      | 0.0000e+00
     5     | 1.1969e-03      | 9.8953e-04      | 0.0000e+00
     6     | 1.4042e-03      | 1.1609e-03      | 0.0000e+00
+
+We can visualize these angular power spectra up to the original expansion limit to understand the beam's properties in harmonic space.
+
+.. plot::
+
+    import gzip
+    import ungrasp
+    import numpy as np
+    import matplotlib.pyplot as plt
+
+    path = ungrasp.get_test_data_path('gaussian_beam')
+    with gzip.open(path, "rt") as f:
+        sph_file = ungrasp.read_sph_file(f)
+    efield = ungrasp.ElectricField.from_frequency_block(sph_file.get(0))
+
+    # Convert to Beam object using the full lmax
+    beam = ungrasp.Beam.from_electric_field(efield)
+    ells, cl_i, cl_e, cl_b = beam.angular_power_spectra()
+
+    plt.figure(figsize=(8, 5))
+
+    # Plot Intensity and E-modes
+    plt.plot(ells, cl_i, label="$C_\\ell^I$ (Intensity)", lw=2)
+    plt.plot(ells, cl_e, label="$C_\\ell^E$ (E-modes)", lw=2)
+
+    # Plot B-modes. The epsilon is meant to avoid problems for zeroes
+    plt.plot(ells, cl_b + 1e-30, label="$C_\\ell^B$ (B-modes)", linestyle="--")
+
+    plt.yscale("log")
+    plt.xlabel("Multipole $\\ell$")
+    plt.ylabel("Angular Power Spectrum $C_\\ell$")
+    plt.title("Beam Harmonic Power Spectra")
+    plt.grid(True, alpha=0.3)
+    plt.legend()

@@ -25,10 +25,16 @@ extensions = [
     "sphinx.ext.napoleon",
     "sphinx.ext.viewcode",
     "sphinx.ext.doctest",
+    "matplotlib.sphinxext.plot_directive",
 ]
 
 napoleon_use_param = True
 napoleon_use_rtype = True
+
+# Matplotlib plot_directive configurations
+plot_include_source = True
+plot_html_show_source_link = False
+plot_html_show_formats = False
 
 templates_path = ["_templates"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]

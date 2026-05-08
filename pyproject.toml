@@ -44,6 +44,7 @@ visualization = [
 docs = [
     "sphinx>=8.2.1",
     "sphinx-rtd-theme>=3.0.2",
+    "matplotlib>=3.10.8",
 ]
 
 [tool.pytest.ini_options]
