@@ -1,7 +1,10 @@
 from dataclasses import dataclass
+import gzip
 from typing import TextIO
 
 import numpy as np
+
+import ungrasp
 
 
 @dataclass
@@ -53,3 +56,10 @@ def load_grd_file(
         nphi=nphi,
         e_field=np.conjugate(result),  # TICRA grd files use the −ωt convention
     )
+
+
+def get_gaussian_beam() -> ungrasp.ElectricField:
+    with gzip.open(ungrasp.get_test_data_path("gaussian_beam.sph.gz"), "rt") as f:
+        grasp_file = ungrasp.read_sph_file(f)
+        assert grasp_file.num_of_blocks == 1
+        return ungrasp.ElectricField.from_frequency_block(grasp_file.get(index=0))

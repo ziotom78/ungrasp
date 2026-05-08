@@ -603,17 +603,17 @@ class ElectricField:
 
         return fig.show()
 
-    def rotate(
-        self, psi_rad: float, theta_rad: float, phi_rad: float
+    def rotate_euler(
+        self, alpha_rad: float, beta_rad: float, gamma_rad: float
     ) -> "ElectricField":
         """
         Return a rotated copy of the beam. The rotation is expressed
-        using Euler angles (Z-Y-Z convention).
+        using standard Euler angles (Z-Y-Z convention).
 
         Args:
-            psi_rad (float): Rotation around Z axis (first).
-            theta_rad (float): Rotation around new Y axis.
-            phi_rad (float): Rotation around new Z axis (last).
+            alpha_rad (float): Rotation around Z axis (first).
+            beta_rad (float): Rotation around new Y axis.
+            gamma_rad (float): Rotation around new Z axis (last).
 
         Returns:
             ElectricField: A new, rotated field object.
@@ -624,9 +624,9 @@ class ElectricField:
             lmax=self.lmax,
             mmax_in=self.mmax,
             mmax_out=self.mmax,
-            psi=psi_rad,
-            theta=theta_rad,
-            phi=phi_rad,
+            psi=alpha_rad,
+            theta=beta_rad,
+            phi=gamma_rad,
         )
 
         return ElectricField(
@@ -635,6 +635,35 @@ class ElectricField:
             mmax=self.mmax,
             alm_stack=alm_rotated,
         )
+
+    def rotate_grasp(
+        self, theta_rad: float, phi_rad: float, psi_rad: float
+    ) -> "ElectricField":
+        """
+        Rotate the beam using the specific coordinate system parameters
+        defined in a TICRA GRASP project.
+
+        This method safely maps GRASP's (ϑ, φ, ψ) parameters to the
+        standard Z-Y-Z active Euler angles used by Ungrasp.
+
+        Because the IAU polarization convention evaluates the twist looking at
+        the *sky* (−r vector), and TICRA evaluates it looking *outward* (+r vector)
+        using a clockwise definition, the two minus signs cancel. The TICRA
+        parameters map 1:1 to the active Wigner rotations:
+        1. α (inner twist) = +ψ
+        2. β (tilt)        = ϑ
+        3. γ (azimuth)     = φ
+
+        Args:
+            theta_rad (float): The GRASP 'theta' parameter.
+            phi_rad (float):   The GRASP 'phi' parameter.
+            psi_rad (float):   The GRASP 'psi' parameter.
+        """
+        alpha = psi_rad  # This has no minus sign because of the IAU/CMB mismatch
+        beta = theta_rad
+        gamma = phi_rad
+
+        return self.rotate_euler(alpha, beta, gamma)
 
     def find_peak(
         self,
@@ -705,8 +734,8 @@ class ElectricField:
 
         # Create a copy of this field and rotate it so that the maximum is
         # aligned with +Z
-        reoriented_beam = self.rotate(
-            psi_rad=-phi_peak, theta_rad=-theta_peak, phi_rad=0.0
+        reoriented_beam = self.rotate_euler(
+            alpha_rad=-phi_peak, beta_rad=-theta_peak, gamma_rad=0.0
         )
 
         # Align the polarization axis with the x axis
@@ -751,7 +780,7 @@ class ElectricField:
         theta, phi, psi = self.find_peak(region_theta_rad, region_phi_rad)
 
         # The inverse of a beam at (theta, phi) with twist (psi)
-        return {"psi_rad": -phi, "theta_rad": -theta, "phi_rad": -psi}
+        return {"alpha_rad": -phi, "beta_rad": -theta, "gamma_rad": -psi}
 
     def align(
         self,
@@ -760,7 +789,7 @@ class ElectricField:
     ) -> "ElectricField":
         """Convenience method that finds the peak and returns a re-aligned copy."""
         angles = self.get_alignment_angles(region_theta_rad, region_phi_rad)
-        return self.rotate(**angles)
+        return self.rotate_euler(**angles)
 
 
 @dataclass

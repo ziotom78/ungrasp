@@ -19,6 +19,17 @@ class SphFormatError(Exception):
 
 @dataclass(frozen=True)
 class SphFileHeader:
+    """
+    Metadata associated to a frequency block in a `.sph` file.
+
+    Attributes:
+        frequency_ghz (float): Frequency in GHz.
+        ntheta (int): Number of theta points (if available/used by GRASP).
+        nphi (int): Number of phi points (if available/used by GRASP).
+        nmax (int): Maximum multipole index (lmax).
+        mmax (int): Maximum azimuthal mode index (mmax).
+    """
+
     frequency_ghz: float
     ntheta: int
     nphi: int
@@ -182,9 +193,9 @@ class FrequencyBlock:
             assert len(values) % 2 == 0
 
             for i in range(len(values) // 2):
-                re = values[2 * i]
-                im = values[2 * i + 1]
-                result.append(complex(re, im))
+                re_val = values[2 * i]
+                im_val = values[2 * i + 1]
+                result.append(complex(re_val, im_val))
 
             if len(result) == n:
                 break
@@ -286,6 +297,17 @@ def read_sph_file(f: TextIO) -> SphFile:
 
     Returns:
         SphFile: The parsed spherical wave expansion file.
+
+    Example:
+        .. code-block:: python
+
+            import ungrasp
+
+            path = ungrasp.get_test_data_path('hertzian_e_dipole_x')
+            with path.open("rt") as f:
+                sph = ungrasp.read_sph_file(f)
+
+            print(sph.num_of_blocks)
     """
 
     blocks = []

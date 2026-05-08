@@ -1,16 +1,7 @@
-import ungrasp
-
-import gzip
 import numpy as np
-
 import pytest
 
-
-def get_gaussian_beam() -> ungrasp.ElectricField:
-    with gzip.open(ungrasp.get_test_data_path("gaussian_beam.sph.gz"), "rt") as f:
-        grasp_file = ungrasp.read_sph_file(f)
-        assert grasp_file.num_of_blocks == 1
-        return ungrasp.ElectricField.from_frequency_block(grasp_file.get(index=0))
+from utils import get_gaussian_beam
 
 
 def test_find_peak():
@@ -22,8 +13,8 @@ def test_find_peak():
     phi_off = np.radians(30.0)
 
     # Inject the displacement (direct rotation)
-    displaced_efield = gaussian_efield.rotate(
-        psi_rad=0.0, theta_rad=theta_off, phi_rad=phi_off
+    displaced_efield = gaussian_efield.rotate_euler(
+        alpha_rad=0.0, beta_rad=theta_off, gamma_rad=phi_off
     )
 
     # Run the locator
@@ -44,8 +35,8 @@ def test_get_alignment_angles():
     phi_off = np.radians(120.0)
 
     # Displace the beam
-    displaced_efield = gaussian_efield.rotate(
-        psi_rad=0.0, theta_rad=theta_off, phi_rad=phi_off
+    displaced_efield = gaussian_efield.rotate_euler(
+        alpha_rad=0.0, beta_rad=theta_off, gamma_rad=phi_off
     )
 
     # Get the correction angles as a dictionary
@@ -54,7 +45,7 @@ def test_get_alignment_angles():
     )
 
     # Apply the correction
-    realigned_efield = displaced_efield.rotate(**correction_angles)
+    realigned_efield = displaced_efield.rotate_euler(**correction_angles)
 
     # Verify the new peak is exactly at the North Pole (theta = 0)
     new_th, new_ph, new_ps = realigned_efield.find_peak(
