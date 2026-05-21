@@ -2,9 +2,7 @@
 
 **Ungrasp is currently under active development alongside an upcoming companion paper (Tomasi et al., in prep). If you wish to use this tool for academic work prior to publication, please contact the authors.**
 
-This repository contains the source code of Ungrasp, a Python library that reads and manipulates GRASP Spherical Wave Expansion (SWE) files. It can be used to change the reference frame, compute the electric field in real-space cuts and grids, and to convert it to an harmonic representation of its Stokes parameters that is suitable for being used by total-convolution codes.
-
-Spherical Wave Expansion is a kind of representation of an electric field that GRASP can compute out of a reflector or a feed. They are suitable for fast rotation/resampling/convolution.
+This repository contains Ungrasp, a Python library that bridges antenna engineering solvers and Cosmic Microwave Background (CMB) pipelines by directly manipulating TICRA Spherical Wave Expansion (SWE) files. By avoiding pixel-space interpolations, Ungrasp performs mathematically exact rotations in the purely harmonic domain, and high-fidelity phase-shift translations using projections free from integration errors. The software can transform the physical electric field into the spin-weighted Stokes parameters ($I, Q, U$) required by total-convolution codes, and evaluates the resulting fields onto arbitrary real-space grids and cuts.
 
 ![](TICRA-Tools-screenshot.png)
 
@@ -21,8 +19,6 @@ TICRA Tools models and outputs are inherently tied to specific local coordinate 
 - **Linear Superposition**: Enables direct algebraic addition (`+`) and subtraction (`-`) of multiple optical paths (e.g., combining main beam, subreflector spillover, and baffle blockage) in coefficient space.
 - **Polarization Projections**: Comprehensive support for standard $\theta/\phi$ projections and Ludwig’s 3rd definition (with automatic mapping to the IAU polarization convention).
 - **High-Performance Backend**: Powered by `ducc0` for ultra-fast, double-precision Spherical Harmonic Transforms.
-
-## Validation
 
 ## Validation
 
@@ -44,7 +40,7 @@ uv add ungrasp
 
 ### Prerequisites
 
-Ensure you have `uv` installed:
+Ensure you have `uv` installed. You can grab the installer from the [Astral website](https://github.com/astral-sh/uv/releases) or run the following script from the command line:
 
 ```sh
 curl -LsSf https://astral.sh/uv/install.sh | sh
