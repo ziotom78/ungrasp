@@ -24,6 +24,20 @@ TICRA Tools models and outputs are inherently tied to specific local coordinate 
 
 `Ungrasp` is verified to match native TICRA Tools evaluations to the literal numerical truncation limit of the ASCII files (~ −80 dB) across complex, highly oscillatory asymmetric interferometric patterns.
 
+The following is a model containing two Gaussian feeds displaced $-4\lambda$ and $+7\lambda$ along the x-axis and rotated by 15° and −22°.
+
+![](two-gaussian-feeds.png)
+
+The following plot compares the `.cut` file saved by TICRA and the cut computed by Ungrasp by performing the following operations:
+
+- Load *one* SWE file containing the SWE of a Gaussian feed;
+- Duplicate the SWE coefficients and rotate each instance by +15° and −22° using Wigner D-matrices;
+- Translate the two rotated SWE to their position
+- Sum the two SWE
+- Project the SWE in real space along the same points of the TICRA cut.
+
+The overall numerical error is $10^{-8}$ dB.
+
 ![](two-gaussian-feeds-comparison.png)
 
 ## Installation
