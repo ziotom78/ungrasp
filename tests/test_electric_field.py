@@ -1,3 +1,21 @@
+# -*- encoding: utf-8 -*-
+#
+#  █████  █████
+# ░░███  ░░███
+#  ░███   ░███  ████████    ███████ ████████   ██████    █████  ████████
+#  ░███   ░███ ░░███░░███  ███░░███░░███░░███ ░░░░░███  ███░░  ░░███░░███
+#  ░███   ░███  ░███ ░███ ░███ ░███ ░███ ░░░   ███████ ░░█████  ░███ ░███
+#  ░███   ░███  ░███ ░███ ░███ ░███ ░███      ███░░███  ░░░░███ ░███ ░███
+#  ░░████████   ████ █████░░███████ █████    ░░████████ ██████  ░███████
+#   ░░░░░░░░   ░░░░ ░░░░░  ░░░░░███░░░░░      ░░░░░░░░ ░░░░░░   ░███░░░
+#                          ███ ░███                             ░███
+#                         ░░██████                              █████
+#                          ░░░░░░                              ░░░░░
+#
+# Copyright © 2026 Maurizio Tomasi
+# This code is licensed under the EUPL 1.2
+# See the file LICENSE.txt
+
 import ungrasp
 import gzip
 
@@ -77,9 +95,13 @@ def test_rotation_consistency():
     field_z = load_dipole_sph("hertzian_e_dipole_z.sph")
 
     # Rotation around Z: X→Y
-    rotated_x = field_x.rotate_euler(alpha_rad=np.pi / 2, beta_rad=0.0, gamma_rad=0.0)
+    rotated_x = field_x.rotate_euler(
+        ungrasp.EulerAngles(alpha_rad=np.pi / 2, beta_rad=0.0, gamma_rad=0.0)
+    )
     assert np.allclose(rotated_x.alm_stack, field_y.alm_stack, atol=1e-12)
 
     # Rotation around Y: Z → X
-    rotated_z = field_z.rotate_euler(alpha_rad=0, beta_rad=np.pi / 2, gamma_rad=0)
+    rotated_z = field_z.rotate_euler(
+        ungrasp.EulerAngles(alpha_rad=0, beta_rad=np.pi / 2, gamma_rad=0)
+    )
     assert np.allclose(rotated_z.alm_stack, field_x.alm_stack, atol=1e-12)

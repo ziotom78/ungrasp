@@ -1,5 +1,25 @@
+# -*- encoding: utf-8 -*-
+#
+#  █████  █████
+# ░░███  ░░███
+#  ░███   ░███  ████████    ███████ ████████   ██████    █████  ████████
+#  ░███   ░███ ░░███░░███  ███░░███░░███░░███ ░░░░░███  ███░░  ░░███░░███
+#  ░███   ░███  ░███ ░███ ░███ ░███ ░███ ░░░   ███████ ░░█████  ░███ ░███
+#  ░███   ░███  ░███ ░███ ░███ ░███ ░███      ███░░███  ░░░░███ ░███ ░███
+#  ░░████████   ████ █████░░███████ █████    ░░████████ ██████  ░███████
+#   ░░░░░░░░   ░░░░ ░░░░░  ░░░░░███░░░░░      ░░░░░░░░ ░░░░░░   ░███░░░
+#                          ███ ░███                             ░███
+#                         ░░██████                              █████
+#                          ░░░░░░                              ░░░░░
+#
+# Copyright © 2026 Maurizio Tomasi
+# This code is licensed under the EUPL 1.2
+# See the file LICENSE.txt
+
 import numpy as np
 import pytest
+
+import ungrasp
 
 from utils import get_gaussian_beam
 
@@ -20,7 +40,7 @@ def test_rotate_euler():
 
     # Inject the displacement using the method under test
     rotated_efield = gaussian_efield.rotate_euler(
-        alpha_rad=psi_off, beta_rad=theta_off, gamma_rad=phi_off
+        ungrasp.EulerAngles(alpha_rad=psi_off, beta_rad=theta_off, gamma_rad=phi_off),
     )
 
     # Evaluate the peak of the rotated field

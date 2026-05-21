@@ -1,13 +1,32 @@
 # -*- encoding: utf-8 -*-
+#
+#  █████  █████
+# ░░███  ░░███
+#  ░███   ░███  ████████    ███████ ████████   ██████    █████  ████████
+#  ░███   ░███ ░░███░░███  ███░░███░░███░░███ ░░░░░███  ███░░  ░░███░░███
+#  ░███   ░███  ░███ ░███ ░███ ░███ ░███ ░░░   ███████ ░░█████  ░███ ░███
+#  ░███   ░███  ░███ ░███ ░███ ░███ ░███      ███░░███  ░░░░███ ░███ ░███
+#  ░░████████   ████ █████░░███████ █████    ░░████████ ██████  ░███████
+#   ░░░░░░░░   ░░░░ ░░░░░  ░░░░░███░░░░░      ░░░░░░░░ ░░░░░░   ░███░░░
+#                          ███ ░███                             ░███
+#                         ░░██████                              █████
+#                          ░░░░░░                              ░░░░░
+#
+# Copyright © 2026 Maurizio Tomasi
+# This code is licensed under the EUPL 1.2
+# See the file LICENSE.txt
 
 from dataclasses import dataclass
 import numpy as np
 from enum import Enum
 from typing import Callable
 import ducc0
-import scipy
+import scipy.optimize
+import scipy.constants
+from scipy.special import roots_legendre
 
 from ungrasp import FrequencyBlock
+from .coord_sys import EulerAngles
 
 
 class Polarization(Enum):
@@ -231,6 +250,66 @@ class ElectricField:
         """Return the index of an a_ℓm coefficient in a Healpix/ducc0 array."""
         return m * (2 * lmax + 1 - m) // 2 + ell
 
+    @staticmethod
+    def analyze_gl_grid_to_alm(
+        grid_E_theta: np.ndarray,
+        grid_E_phi: np.ndarray,
+        lmax: int,
+        mmax: int,
+        spin: int = 1,
+        nthreads: int = 1,
+    ) -> np.ndarray:
+        """
+        Analyzes a complex electric field evaluated on a Gauss-Legendre grid
+        back into spherical harmonic coefficients (a_lm).
+
+        Args:
+            grid_E_theta (np.ndarray): Complex E-field theta component, shape (nlat, nlon).
+            grid_E_phi (np.ndarray): Complex E-field phi component, shape (nlat, nlon).
+            lmax (int): Maximum multipole.
+            mmax (int): Maximum azimuthal mode.
+            spin (int): Spin-weight of the field (1 for electric field vectors).
+            nthreads (int): Number of threads for ducc0 parallelization.
+
+        Returns:
+            np.ndarray: Complex array of shape (4, nalm) containing:
+                        [0, :] -> E-mode of Real(E)
+                        [1, :] -> B-mode of Real(E)
+                        [2, :] -> E-mode of Imag(E)
+                        [3, :] -> B-mode of Imag(E)
+        """
+
+        map_real = np.ascontiguousarray([np.real(grid_E_theta), np.real(grid_E_phi)])
+        map_imag = np.ascontiguousarray([np.imag(grid_E_theta), np.imag(grid_E_phi)])
+
+        alm_real = ducc0.sht.analysis_2d(
+            map=map_real,
+            spin=spin,
+            geometry="GL",
+            lmax=lmax,
+            mmax=mmax,
+            nthreads=nthreads,
+        )
+
+        alm_imag = ducc0.sht.analysis_2d(
+            map=map_imag,
+            spin=spin,
+            geometry="GL",
+            lmax=lmax,
+            mmax=mmax,
+            nthreads=nthreads,
+        )
+
+        nalm = alm_real.shape[1]
+        alm_stack = np.empty((4, nalm), dtype=np.complex128)
+
+        alm_stack[0, :] = alm_real[0, :]  # E-mode of the Real part
+        alm_stack[1, :] = alm_real[1, :]  # B-mode of the Real part
+        alm_stack[2, :] = alm_imag[0, :]  # E-mode of the Imaginary part
+        alm_stack[3, :] = alm_imag[1, :]  # B-mode of the Imaginary part
+
+        return alm_stack
+
     def get_alms(
         self, ell: int, m: int
     ) -> tuple[np.complex128, np.complex128, np.complex128, np.complex128]:
@@ -277,8 +356,111 @@ class ElectricField:
                     0.5 * j_ell * (q1_mpos - (-1) * phase_sym * np.conj(q1_mneg))
                 )
 
+    def total_power(self) -> float:
+        """
+        Compute the total integrated power of the electric field over the full sphere
+        using the spherical harmonic coefficients.
+
+        Returns ∫|E|² dΩ.
+        """
+        # Calculate the absolute square of every coefficient in the stack
+        # This covers Real E, Real B, Imag E, and Imag B components.
+        power_stack = np.abs(self.alm_stack) ** 2
+
+        # Create a weights array for the 1D ducc0 layout, as we need to treat m=0
+        # differently (see below)
+        nalm = power_stack.shape[1]
+        weights = np.full(nalm, 2.0, dtype=np.float64)
+
+        # The m=0 modes do not have a negative counterpart, so their weight is exactly 1.0.
+        # In the ducc0 memory layout, the m=0 chunk is always the first (lmax + 1) elements.
+        weights[0 : self.lmax + 1] = 1.0
+
+        integral_E_squared = np.sum(power_stack * weights)
+
+        return float(integral_E_squared)
+
+    def _pad_alm_stack(self, target_lmax: int, target_mmax: int) -> np.ndarray:
+        """
+        Safely pads the current a_lm array with zeros up to a new, larger target
+        lmax and mmax by copying contiguous m-chunks according to the ducc0 memory layout.
+        """
+        if target_lmax < self.lmax or target_mmax < self.mmax:
+            raise ValueError(
+                "Target dimensions must be greater than or equal to current dimensions."
+            )
+
+        # Correct calculation of total size for ducc0/HEALPix layout
+        # This is the sum of (target_lmax - m + 1) from m=0 to target_mmax
+        nalm_new = (target_mmax + 1) * (2 * target_lmax + 2 - target_mmax) // 2
+
+        new_stack = np.zeros((4, nalm_new), dtype=np.complex128)
+
+        for m in range(self.mmax + 1):
+            # The number of multipoles for this m in the OLD array
+            l_count = self.lmax - m + 1
+
+            # The exact mathematical start index for chunk 'm' in ducc0
+            idx_old_start = m * (2 * self.lmax + 3 - m) // 2
+            idx_old_end = idx_old_start + l_count
+
+            # The exact mathematical start index for chunk 'm' in the PADDED array
+            idx_new_start = m * (2 * target_lmax + 3 - m) // 2
+            idx_new_end = idx_new_start + l_count
+
+            # Fast numpy contiguous copy
+            new_stack[:, idx_new_start:idx_new_end] = self.alm_stack[
+                :, idx_old_start:idx_old_end
+            ]
+
+        return new_stack
+
+    def __add__(self, other: "ElectricField") -> "ElectricField":
+        """Allows algebraic addition of two ElectricFields: field3 = field1 + field2"""
+        if not np.isclose(self.frequency_ghz, other.frequency_ghz, atol=1e-6):
+            raise ValueError(
+                "Cannot superimpose fields with different physical frequencies."
+            )
+
+        new_lmax = max(self.lmax, other.lmax)
+        new_mmax = max(self.mmax, other.mmax)
+
+        # Pad both fields to the new maximum bounding box
+        stack_self_padded = self._pad_alm_stack(new_lmax, new_mmax)
+        stack_other_padded = other._pad_alm_stack(new_lmax, new_mmax)
+
+        # Direct algebraic superposition
+        return ElectricField(
+            frequency_ghz=self.frequency_ghz,
+            lmax=new_lmax,
+            mmax=new_mmax,
+            alm_stack=stack_self_padded + stack_other_padded,
+        )
+
+    def __sub__(self, other: "ElectricField") -> "ElectricField":
+        """Allows algebraic subtraction of two ElectricFields: field3 = field1 - field2"""
+        if not np.isclose(self.frequency_ghz, other.frequency_ghz, atol=1e-6):
+            raise ValueError(
+                "Cannot superimpose fields with different physical frequencies."
+            )
+
+        new_lmax = max(self.lmax, other.lmax)
+        new_mmax = max(self.mmax, other.mmax)
+
+        stack_self_padded = self._pad_alm_stack(new_lmax, new_mmax)
+        stack_other_padded = other._pad_alm_stack(new_lmax, new_mmax)
+
+        return ElectricField(
+            frequency_ghz=self.frequency_ghz,
+            lmax=new_lmax,
+            mmax=new_mmax,
+            alm_stack=stack_self_padded - stack_other_padded,
+        )
+
     def project_to_gl(
-        self, n_theta: int | None = None, n_phi: int | None = None
+        self,
+        n_theta: int | None = None,
+        n_phi: int | None = None,
     ) -> tuple[np.ndarray, np.ndarray]:
         """Project the spherical harmonic expansion over a Gauss-Legendre grid
 
@@ -322,6 +504,86 @@ class ElectricField:
 
         return (efield_theta, efield_phi)
 
+    def translate_phase_center(
+        self,
+        dx_m: float,
+        dy_m: float,
+        dz_m: float,
+        lmax_out: int | None = None,
+        mmax_out: int | None = None,
+    ) -> "ElectricField":
+        """
+        Shift the phase center of the far-field beam by a vector (dx, dy, dz) in meters
+
+        This routine uses exact Gauss-Legendre quadrature to apply the translation
+        phase factor, so it does not introduce integration errors in the procedure.
+
+        To prevent spatial aliasing, the field is upsampled to a new harmonic bandwidth
+        l_new = l_old + k|d| before the phase factor is applied.
+        """
+
+        #  Calculate the physical shift bandwidth
+        d_mag = np.sqrt(dx_m**2 + dy_m**2 + dz_m**2)
+        wavelength_m = scipy.constants.speed_of_light / (self.frequency_ghz * 1e9)
+        k0 = 2 * np.pi / wavelength_m
+
+        # Add an asymptotic buffer to capture the exponential tail of the Bessel functions,
+        # pushing the truncation error down to the 64-bit machine precision floor.
+        # This mirrors the truncation rules used by TICRA Tools
+        if d_mag > 0.0:
+            kd = k0 * d_mag  # The baseline physical bandwidth
+            padding = int(np.ceil(3.6 * np.cbrt(kd))) + 15
+            l_shift = int(np.ceil(kd)) + padding
+        else:
+            l_shift = 0
+
+        # Determine new truncation limits (use user inputs if provided, else use physical rules)
+        l_new = lmax_out if lmax_out is not None else self.lmax + l_shift
+
+        # If the shift is purely along Z (dx=0, dy=0), m modes do not mix.
+        # Otherwise, mmax must grow to capture the broken symmetry.
+        # The point is that we must sample the field over a grid dense enough
+        # to capture l_new to prevent aliasing
+        if mmax_out is not None:
+            m_new = mmax_out
+        elif dx_m == 0.0 and dy_m == 0.0:
+            m_new = self.mmax
+        else:
+            m_new = l_new
+
+        nlat = l_new + 1
+        nlon = 2 * l_new + 1
+
+        grid_E_theta, grid_E_phi = self.project_to_gl(n_theta=nlat, n_phi=nlon)
+
+        # Calculate spatial phase shift. As `roots_legendre` returns (nodes, weights),
+        # we discard `weights`. Also, `nodes` are sorted from −1 to 1 (South to North),
+        # but Ducc evaluates grids from North to South, so we must reverse the array
+        nodes, _ = roots_legendre(nlat)
+        colat = np.arccos(nodes[::-1])
+        lon = np.linspace(0, 2 * np.pi, nlon, endpoint=False)
+        phi, theta = np.meshgrid(lon, colat)
+
+        rx = np.sin(theta) * np.cos(phi)
+        ry = np.sin(theta) * np.sin(phi)
+        rz = np.cos(theta)
+
+        phase = k0 * (rx * dx_m + ry * dy_m + rz * dz_m)
+        shift_factor = np.exp(1j * phase)
+
+        shifted_E_theta = grid_E_theta * shift_factor
+        shifted_E_phi = grid_E_phi * shift_factor
+
+        new_alm = ElectricField.analyze_gl_grid_to_alm(
+            shifted_E_theta,
+            shifted_E_phi,
+            lmax=l_new,
+            mmax=m_new,
+            spin=1,
+        )
+
+        return ElectricField(self.frequency_ghz, l_new, m_new, new_alm)
+
     def evaluate_grid(
         self,
         theta_start_rad: float,
@@ -332,7 +594,7 @@ class ElectricField:
         nphi: int,
         polarization: Polarization,
         epsilon: float = 1e-8,
-        use_grasp_phase: bool = False,
+        use_ticra_phase: bool = False,
     ) -> tuple[np.ndarray, np.ndarray]:
         """
         Evaluate the electric field on an arbitrary 2D grid of spherical coordinates.
@@ -342,18 +604,18 @@ class ElectricField:
         components depend on the chosen polarization basis.
 
         Args:
-            theta_start_rad (float): Starting colatitude (polar angle) in radians (0 to pi).
-            theta_end_rad (float): Ending colatitude (polar angle) in radians (0 to pi).
-            ntheta (int): Number of samples along the colatitude (theta) direction.
-            phi_start_rad (float): Starting longitude (azimuthal angle) in radians (0 to 2*pi).
-            phi_end_rad (float): Ending longitude (azimuthal angle) in radians (0 to 2*pi).
-            nphi (int): Number of samples along the longitude (phi) direction.
+            theta_start_rad (float): Starting colatitude ϑ (polar angle) in radians (-π to π).
+            theta_end_rad (float): Ending colatitude ϑ (polar angle) in radians (-π to π).
+            ntheta (int): Number of samples along the colatitude (ϑ) direction.
+            phi_start_rad (float): Starting longitude φ (azimuthal angle) in radians (0 to 2π).
+            phi_end_rad (float): Ending longitude φ (azimuthal angle) in radians (0 to 2π).
+            nphi (int): Number of samples along the longitude (φ) direction.
             polarization (Polarization): The polarization basis to use for the output components
                 (see `ungrasp.Polarization`).
             epsilon (float, optional): Desired accuracy for the spherical harmonic transform, by default 1e-8.
-            use_grasp_phase (bool, optional): If ``True``, the complex conjugate of the field components is returned
+            use_ticra_phase (bool, optional): If ``True``, the complex conjugate of the field components is returned
                 to match TICRA GRASP convention for ``.cut`` and ``.grd`` files.
-                By default ``False``.
+                By default, ``False``.
 
         Returns:
             tuple[np.ndarray, np.ndarray]: A tuple containing two complex NumPy arrays, (Comp1, Comp2).
@@ -364,6 +626,12 @@ class ElectricField:
         phi = np.linspace(phi_start_rad, phi_end_rad, num=nphi)
 
         theta_grid, phi_grid = np.meshgrid(theta, phi, indexing="ij")
+
+        # ϑ < 0 requires a dedicated calculation
+        neg_mask = theta_grid < 0
+        theta_grid[neg_mask] = np.abs(theta_grid[neg_mask])
+        phi_grid[neg_mask] = phi_grid[neg_mask] + np.pi
+        phi_grid = phi_grid % (2 * np.pi)
 
         # In this linearized representation of the directions, the φ angle varies faster than ϑ
         loc = np.stack((theta_grid.ravel(), phi_grid.ravel()), axis=-1)
@@ -391,10 +659,13 @@ class ElectricField:
         e_theta = (map_vec_re[0] + 1j * map_vec_im[0]).reshape((ntheta, nphi))
         e_phi = (map_vec_re[1] + 1j * map_vec_im[1]).reshape((ntheta, nphi))
 
+        e_theta[neg_mask] = -e_theta[neg_mask]
+        e_phi[neg_mask] = -e_phi[neg_mask]
+
         result = _apply_polarization(
             e_theta=e_theta, e_phi=e_phi, phi_grid=phi_grid, polarization=polarization
         )
-        if use_grasp_phase:
+        if use_ticra_phase:
             return np.conj(result[0]), np.conj(result[1])
         else:
             return result
@@ -407,7 +678,7 @@ class ElectricField:
         ntheta: int,
         polarization: Polarization,
         epsilon=1e-8,
-        use_grasp_phase: bool = False,
+        use_ticra_phase: bool = False,
     ) -> tuple[np.ndarray, np.ndarray]:
         """
         Extract a 1D cut of the electric field at a constant azimuthal angle.
@@ -423,7 +694,7 @@ class ElectricField:
             polarization (Polarization): The polarization basis to use for the output components
                 (see `ungrasp.Polarization`).
             epsilon (float, optional): Desired accuracy for the spherical harmonic transform, by default 1e-8.
-            use_grasp_phase (bool, optional): If ``True``, the complex conjugate of the field components is returned
+            use_ticra_phase (bool, optional): If ``True``, the complex conjugate of the field components is returned
                 to match TICRA GRASP convention for ``.cut`` and ``.grd`` files.
                 By default ``False``.
 
@@ -442,7 +713,7 @@ class ElectricField:
             nphi=1,
             polarization=polarization,
             epsilon=epsilon,
-            use_grasp_phase=use_grasp_phase,
+            use_ticra_phase=use_ticra_phase,
         )
 
         return e1.flatten(), e2.flatten()
@@ -603,17 +874,13 @@ class ElectricField:
 
         return fig.show()
 
-    def rotate_euler(
-        self, alpha_rad: float, beta_rad: float, gamma_rad: float
-    ) -> "ElectricField":
+    def rotate_euler(self, angles: EulerAngles) -> "ElectricField":
         """
         Return a rotated copy of the beam. The rotation is expressed
         using standard Euler angles (Z-Y-Z convention).
 
         Args:
-            alpha_rad (float): Rotation around Z axis (first).
-            beta_rad (float): Rotation around new Y axis.
-            gamma_rad (float): Rotation around new Z axis (last).
+            angles: An instance of the class :class:`.EulerAngles`
 
         Returns:
             ElectricField: A new, rotated field object.
@@ -624,9 +891,9 @@ class ElectricField:
             lmax=self.lmax,
             mmax_in=self.mmax,
             mmax_out=self.mmax,
-            psi=alpha_rad,
-            theta=beta_rad,
-            phi=gamma_rad,
+            psi=angles.alpha_rad,
+            theta=angles.beta_rad,
+            phi=angles.gamma_rad,
         )
 
         return ElectricField(
@@ -659,11 +926,14 @@ class ElectricField:
             phi_rad (float):   The GRASP 'phi' parameter.
             psi_rad (float):   The GRASP 'psi' parameter.
         """
-        alpha = psi_rad  # This has no minus sign because of the IAU/CMB mismatch
-        beta = theta_rad
-        gamma = phi_rad
+        # The parameter `alpha_rad` has no minus sign because of the IAU/CMB mismatch
+        angles = EulerAngles(
+            alpha_rad=psi_rad,
+            beta_rad=theta_rad,
+            gamma_rad=phi_rad,
+        )
 
-        return self.rotate_euler(alpha, beta, gamma)
+        return self.rotate_euler(angles)
 
     def find_peak(
         self,
@@ -735,7 +1005,7 @@ class ElectricField:
         # Create a copy of this field and rotate it so that the maximum is
         # aligned with +Z
         reoriented_beam = self.rotate_euler(
-            alpha_rad=-phi_peak, beta_rad=-theta_peak, gamma_rad=0.0
+            EulerAngles(alpha_rad=-phi_peak, beta_rad=-theta_peak, gamma_rad=0.0),
         )
 
         # Align the polarization axis with the x axis
@@ -759,7 +1029,7 @@ class ElectricField:
         self,
         region_theta_rad: tuple[float, float, int] = (0, np.radians(10), 30),
         region_phi_rad: tuple[float, float, int] = (0, np.radians(360), 60),
-    ) -> dict[str, float]:
+    ) -> EulerAngles:
         """
         Compute the Euler angles required to center the beam and align its polarization.
 
@@ -780,7 +1050,7 @@ class ElectricField:
         theta, phi, psi = self.find_peak(region_theta_rad, region_phi_rad)
 
         # The inverse of a beam at (theta, phi) with twist (psi)
-        return {"alpha_rad": -phi, "beta_rad": -theta, "gamma_rad": -psi}
+        return EulerAngles(alpha_rad=-phi, beta_rad=-theta, gamma_rad=-psi)
 
     def align(
         self,
@@ -789,7 +1059,7 @@ class ElectricField:
     ) -> "ElectricField":
         """Convenience method that finds the peak and returns a re-aligned copy."""
         angles = self.get_alignment_angles(region_theta_rad, region_phi_rad)
-        return self.rotate_euler(**angles)
+        return self.rotate_euler(angles)
 
 
 @dataclass

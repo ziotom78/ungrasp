@@ -1,5 +1,25 @@
+# -*- encoding: utf-8 -*-
+#
+#  █████  █████
+# ░░███  ░░███
+#  ░███   ░███  ████████    ███████ ████████   ██████    █████  ████████
+#  ░███   ░███ ░░███░░███  ███░░███░░███░░███ ░░░░░███  ███░░  ░░███░░███
+#  ░███   ░███  ░███ ░███ ░███ ░███ ░███ ░░░   ███████ ░░█████  ░███ ░███
+#  ░███   ░███  ░███ ░███ ░███ ░███ ░███      ███░░███  ░░░░███ ░███ ░███
+#  ░░████████   ████ █████░░███████ █████    ░░████████ ██████  ░███████
+#   ░░░░░░░░   ░░░░ ░░░░░  ░░░░░███░░░░░      ░░░░░░░░ ░░░░░░   ░███░░░
+#                          ███ ░███                             ░███
+#                         ░░██████                              █████
+#                          ░░░░░░                              ░░░░░
+#
+# Copyright © 2026 Maurizio Tomasi
+# This code is licensed under the EUPL 1.2
+# See the file LICENSE.txt
+
 import numpy as np
 import pytest
+
+import ungrasp
 
 from utils import get_gaussian_beam
 
@@ -14,7 +34,7 @@ def test_find_peak():
 
     # Inject the displacement (direct rotation)
     displaced_efield = gaussian_efield.rotate_euler(
-        alpha_rad=0.0, beta_rad=theta_off, gamma_rad=phi_off
+        ungrasp.EulerAngles(alpha_rad=0.0, beta_rad=theta_off, gamma_rad=phi_off),
     )
 
     # Run the locator
@@ -36,7 +56,7 @@ def test_get_alignment_angles():
 
     # Displace the beam
     displaced_efield = gaussian_efield.rotate_euler(
-        alpha_rad=0.0, beta_rad=theta_off, gamma_rad=phi_off
+        ungrasp.EulerAngles(alpha_rad=0.0, beta_rad=theta_off, gamma_rad=phi_off),
     )
 
     # Get the correction angles as a dictionary
@@ -45,7 +65,7 @@ def test_get_alignment_angles():
     )
 
     # Apply the correction
-    realigned_efield = displaced_efield.rotate_euler(**correction_angles)
+    realigned_efield = displaced_efield.rotate_euler(correction_angles)
 
     # Verify the new peak is exactly at the North Pole (theta = 0)
     new_th, new_ph, new_ps = realigned_efield.find_peak(
