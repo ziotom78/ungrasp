@@ -1,19 +1,34 @@
-# Ungrasp — A converter for GRASP `.sph` files
+# Ungrasp — A converter for TICRA Spherical Wave Expansions
 
-This repository contains the source code of Ungrasp, a Python library that reads GRASP spherical harmonic files (`.sph`) and converts them into spin-2 Stokes a_ℓm coefficients suitable for beam convolution codes.
+**Ungrasp is currently under active development alongside an upcoming companion paper (Tomasi et al., in prep). If you wish to use this tool for academic work prior to publication, please contact the authors.**
+
+This repository contains the source code of Ungrasp, a Python library that reads and manipulates GRASP Spherical Wave Expansion (SWE) files. It can be used to change the reference frame, compute the electric field in real-space cuts and grids, and to convert it to an harmonic representation of its Stokes parameters that is suitable for being used by total-convolution codes.
 
 Spherical Wave Expansion is a kind of representation of an electric field that GRASP can compute out of a reflector or a feed. They are suitable for fast rotation/resampling/convolution.
 
 ![](TICRA-Tools-screenshot.png)
 
+## Why the name?
+
+TICRA Tools models and outputs are inherently tied to specific local coordinate systems, nested bases, and strict proprietary conventions. `Ungrasp` is designed to “un-GRASP” your electromagnetic data—freeing the spherical harmonic coefficients from their rigid local frames and letting you analytically rotate, translate, and superimpose fields in a unified global environment.
+
 ## Features
 
--   **Parsing of `.sph` files**
--   **Spin-1 to Spin-2 Transformation**: Convert the physical electric field (spin-1) computed by GRASP into Stokes parameters (I, Q, U) and their corresponding spin-0 and spin-2 ($a_{\ell m}^E$, $a_{\ell m}^B$) harmonic coefficients
--   **Polarization Projections**: Built-in support for Ludwig’s 3rd definition and standard Theta/Phi projection
--   **High-Performance Backend**: Based on Ducc0 for fast Spherical Harmonic Transforms
--   **Automated Beam Alignment**: Include an `auto_align` method that automatically rotates the beam in harmonic space to align the peak intensity and the polarization direction of the main beam
--   **Arbitrary grid evaluation**: Evaluate the complex electric field at any specific coordinate or 1D cut.
+- **Native SWE Parsing**: Directly ingests and parses binary and ASCII TICRA Spherical Wave Expansion files.
+- **Spin-1 to Spin-2 Transformation**: Converts physical electric far-fields (spin-1) into Stokes parameters ($I, Q, U$) and maps them directly to the spin-weighted spherical harmonic coefficients ($a_{\ell m}^E$, $a_{\ell m}^B$) required by CMB total-convolution codes.
+- **Exact Coordinate Rotations**: Implements exact 3D rigid-body rotations of harmonic coefficients using Wigner-$D$ matrices.
+- **Phase-Shift Translations**: Features `ElectricField.translate_phase_center()`, utilizing spherical Bessel function padding to apply exact spatial translation phase shifts without introducing spatial aliasing.
+- **Linear Superposition**: Enables direct algebraic addition (`+`) and subtraction (`-`) of multiple optical paths (e.g., combining main beam, subreflector spillover, and baffle blockage) in coefficient space.
+- **Polarization Projections**: Comprehensive support for standard $\theta/\phi$ projections and Ludwig’s 3rd definition (with automatic mapping to the IAU polarization convention).
+- **High-Performance Backend**: Powered by `ducc0` for ultra-fast, double-precision Spherical Harmonic Transforms.
+
+## Validation
+
+## Validation
+
+`Ungrasp` is verified to match native TICRA Tools evaluations to the literal numerical truncation limit of the ASCII files (~ −80 dB) across complex, highly oscillatory asymmetric interferometric patterns.
+
+![](two-gaussian-feeds-comparison.png)
 
 ## Installation
 
@@ -23,18 +38,7 @@ The easiest way to add Ungrasp to your Python code is using `uv`:
 uv add ungrasp
 ```
 
-## Basic Usage
 
-- Simple example
-- Visualizing a cut
-- Plotting a Healpix map
-- Aligning a beam
-
-## Licensing
-
-This project is licensed under the EUPL v1.2. See [LICENSE.txt](./LICENSE.txt).
-
-Please note that this library depends on [Ducc](https://gitlab.mpcdf.mpg.de/mtr/ducc/-/blob/ducc0/LICENSE), which is [licensed under the GPLv2](https://gitlab.mpcdf.mpg.de/mtr/ducc/-/blob/ducc0/LICENSE). When distributed together or used as a combined work, the terms of the GPL may apply to the combination as permitted by the EUPL v1.2 compatibility clause.
 
 ## Development setup
 
@@ -51,7 +55,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 We use dependency groups to keep the environment lean. Depending on your task, sync the environment using one of the following commands:
 
 -   Standard Development (Tests, Linting, Typing):
-  
+
     ```sh
     uv sync --group dev
     ```
@@ -69,7 +73,7 @@ We use dependency groups to keep the environment lean. Depending on your task, s
     ```
 
 -   Minimal/Production (Library only):
-    
+
     ```sh
     uv sync
     ```
@@ -119,3 +123,14 @@ If you need to remove the virtual environment and start fresh, run the following
 rm -rf .venv
 uv sync
 ```
+
+
+## Licensing
+
+This project is licensed under the EUPL v1.2. See [LICENSE.txt](./LICENSE.txt).
+
+Please note that this library depends on [Ducc](https://gitlab.mpcdf.mpg.de/mtr/ducc/-/blob/ducc0/LICENSE), which is [licensed under the GPLv2](https://gitlab.mpcdf.mpg.de/mtr/ducc/-/blob/ducc0/LICENSE). When distributed together or used as a combined work, the terms of the GPL may apply to the combination as permitted by the EUPL v1.2 compatibility clause.
+
+## Citation
+
+A paper describing Ungrasp is currently being prepared. Contact the authors if you want to cite Ungrasp.
