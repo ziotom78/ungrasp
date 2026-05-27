@@ -16,6 +16,7 @@
 # This code is licensed under the EUPL 1.2
 # See the file LICENSE.txt
 
+import gzip
 import ungrasp
 
 from pathlib import Path
@@ -72,7 +73,7 @@ def test_hertzian_dipoles(data_file, reference):
                     npt.assert_allclose(freq_block.get_q(*idx).imag, 0.0, atol=1e-12)
 
 
-def test_read_multi_frequency(data_dir):
+def test_read_multi_frequency():
     with (ungrasp.get_test_data_path("multi_frequency.sph")).open("rt") as f:
         grasp_file = ungrasp.read_sph_file(f)
 
@@ -81,7 +82,33 @@ def test_read_multi_frequency(data_dir):
     assert grasp_file.get(index=1).frequency_ghz == 17.0
 
 
-def test_convert_to_electric_field(data_dir):
+def test_read_sph_frequency():
+    # Test reading from a GZipped file path
+    gz_path = ungrasp.get_test_data_path("gaussian_beam.sph.gz")
+    freq_block_gz = ungrasp.read_sph_frequency(gz_path)
+    assert freq_block_gz.frequency_ghz == pytest.approx(15.0)
+    npt.assert_allclose(freq_block_gz.cum_power, 0.5, atol=1e-6)
+
+    # Test reading from a plain text file path
+    plain_path = ungrasp.get_test_data_path("hertzian_e_dipole_x.sph")
+    freq_block_plain = ungrasp.read_sph_frequency(plain_path)
+    assert freq_block_plain.frequency_ghz == pytest.approx(15.0)
+    npt.assert_allclose(freq_block_plain.cum_power, 0.5, atol=1e-6)
+
+    # Test reading from a file-like object (uncompressed)
+    with plain_path.open("rt") as f:
+        freq_block_fobj = ungrasp.read_sph_frequency(f)
+        assert freq_block_fobj.frequency_ghz == pytest.approx(15.0)
+        npt.assert_allclose(freq_block_fobj.cum_power, 0.5, atol=1e-6)
+
+    # Test reading from a file-like object (GZipped)
+    with gzip.open(gz_path, "rt") as f:
+        freq_block_fobj_gz = ungrasp.read_sph_frequency(f)
+        assert freq_block_fobj_gz.frequency_ghz == pytest.approx(15.0)
+        npt.assert_allclose(freq_block_fobj_gz.cum_power, 0.5, atol=1e-6)
+
+
+def test_convert_to_electric_field():
 
     def get_coeffs(file_name: str, ell: int, m: int):
         with (ungrasp.get_test_data_path(file_name)).open("rt") as f:

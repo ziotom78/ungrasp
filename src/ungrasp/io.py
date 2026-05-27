@@ -17,6 +17,8 @@
 # See the file LICENSE.txt
 
 from dataclasses import dataclass
+import gzip
+from pathlib import Path
 import re
 from typing import TextIO
 
@@ -339,3 +341,37 @@ def read_sph_file(f: TextIO) -> SphFile:
             break
 
     return SphFile(frequency_blocks=blocks)
+
+
+def read_sph_frequency(
+    f: TextIO | str | Path,
+    frequency_idx: int = 0,
+) -> FrequencyBlock:
+    """Read one frequency block from a GRASP .sph file.
+
+    This is a convenience function that wraps :func:`read_sph_file`.
+
+    Args:
+        f (TextIO | str | Path): The file to read from. It can be a path
+            (either a string or a ``pathlib.Path`` object) or a file-like
+            object opened in text mode. If a path is provided, the function
+            will automatically handle GZip-compressed files.
+        frequency_idx (int): The 0-based index of the frequency block to
+            read.
+
+    Returns:
+        FrequencyBlock: The parsed frequency block.
+    """
+    if isinstance(f, (str, Path)):
+        try:
+            # Try to open as a Gzipped file first
+            with gzip.open(f, "rt") as inpf:
+                return read_sph_file(inpf).get(frequency_idx)
+        except gzip.BadGzipFile:
+            # If it fails, open as a regular text file
+            with open(f, "rt") as inpf:
+                return read_sph_file(inpf).get(frequency_idx)
+    else:
+        # If `f` is a file-like object, we assume it's ready to be read.
+        # The caller is responsible for handling decompression if needed.
+        return read_sph_file(f).get(frequency_idx)
