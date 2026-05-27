@@ -343,7 +343,7 @@ def read_sph_file(f: TextIO) -> SphFile:
     return SphFile(frequency_blocks=blocks)
 
 
-def read_sph_frequency(
+def read_sph_frequency_block(
     f: TextIO | str | Path,
     frequency_idx: int = 0,
 ) -> FrequencyBlock:

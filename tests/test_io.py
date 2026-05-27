@@ -85,25 +85,25 @@ def test_read_multi_frequency():
 def test_read_sph_frequency():
     # Test reading from a GZipped file path
     gz_path = ungrasp.get_test_data_path("gaussian_beam.sph.gz")
-    freq_block_gz = ungrasp.read_sph_frequency(gz_path)
+    freq_block_gz = ungrasp.read_sph_frequency_block(gz_path)
     assert freq_block_gz.frequency_ghz == pytest.approx(15.0)
     npt.assert_allclose(freq_block_gz.cum_power, 0.5, atol=1e-6)
 
     # Test reading from a plain text file path
     plain_path = ungrasp.get_test_data_path("hertzian_e_dipole_x.sph")
-    freq_block_plain = ungrasp.read_sph_frequency(plain_path)
+    freq_block_plain = ungrasp.read_sph_frequency_block(plain_path)
     assert freq_block_plain.frequency_ghz == pytest.approx(15.0)
     npt.assert_allclose(freq_block_plain.cum_power, 0.5, atol=1e-6)
 
     # Test reading from a file-like object (uncompressed)
     with plain_path.open("rt") as f:
-        freq_block_fobj = ungrasp.read_sph_frequency(f)
+        freq_block_fobj = ungrasp.read_sph_frequency_block(f)
         assert freq_block_fobj.frequency_ghz == pytest.approx(15.0)
         npt.assert_allclose(freq_block_fobj.cum_power, 0.5, atol=1e-6)
 
     # Test reading from a file-like object (GZipped)
     with gzip.open(gz_path, "rt") as f:
-        freq_block_fobj_gz = ungrasp.read_sph_frequency(f)
+        freq_block_fobj_gz = ungrasp.read_sph_frequency_block(f)
         assert freq_block_fobj_gz.frequency_ghz == pytest.approx(15.0)
         npt.assert_allclose(freq_block_fobj_gz.cum_power, 0.5, atol=1e-6)
 

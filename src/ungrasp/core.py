@@ -17,15 +17,17 @@
 # See the file LICENSE.txt
 
 from dataclasses import dataclass
-import numpy as np
 from enum import Enum
-from typing import Callable
+from pathlib import Path
+from typing import Callable, TextIO
+
+import numpy as np
 import ducc0
 import scipy.optimize
 import scipy.constants
 from scipy.special import roots_legendre
 
-from ungrasp import FrequencyBlock
+from .io import FrequencyBlock, read_sph_frequency_block
 from .coord_sys import EulerAngles
 
 
@@ -1265,3 +1267,26 @@ class Beam:
             cl_b[i] = sum_b / (2 * ell + 1)
 
         return ells, cl_i, cl_e, cl_b
+
+
+def read_sph_electric_field(
+    f: TextIO | str | Path,
+    frequency_idx: int = 0,
+) -> ElectricField:
+    """Read the SWE of an electric field at a specified frequency from a GRASP .sph file.
+
+    This is a convenience function that wraps :func:`read_sph_frequency_block`.
+
+    Args:
+        f (TextIO | str | Path): The file to read from. It can be a path
+            (either a string or a ``pathlib.Path`` object) or a file-like
+            object opened in text mode. If a path is provided, the function
+            will automatically handle GZip-compressed files.
+        frequency_idx (int): The 0-based index of the frequency block to
+            read.
+
+    Returns:
+        ElectricField: The parsed electric field.
+    """
+    freq_block = read_sph_frequency_block(f, frequency_idx)
+    return ElectricField.from_frequency_block(freq_block)
